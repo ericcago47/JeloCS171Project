@@ -18,126 +18,77 @@
 # ======================================================================
 
 from Agent import Agent
-import random
 
 class MyAI ( Agent ):
 
-    def __init__ ( self ):
-	    # ======================================================================
-	    # YOUR CODE BEGINS
-	    # ======================================================================
-	        
-        self._direction = 'right'
-		self._currentLocation = (0,0)
-		self._X = 0
-		self._Y = 0
-		self._prevAction = None
-		self._hasArrow = True
-		self._hasGold = False
-		self._rowLen = None
-		self._colLen = None
-		self._deadWumpus = False
-		# Game state has min 4x4
-		self._gameState = [[['@','v'],[],[],[]],[[],[],[],[]],[[],[],[],[]],[[],[],[],[]]]	
-		# @ = Agent
-		# v = Visited
-		# br = Breeze
-		# bu = Bump
-		# s = Stench
-		# p = Pit
-		# go = Gold
-		# gl = Glitter
-		# w = Wumpus
-		# pp = Possible Pit
-		# pw = Possible Wumpus
-
-        # ======================================================================
-        # YOUR CODE ENDS
-        # ======================================================================
-
-    def getAction( self, stench, breeze, glitter, bump, scream ):
+	def __init__ ( self ):
         # ======================================================================
         # YOUR CODE BEGINS
         # ======================================================================
-		nextMove = Agent.Action.CLIMB
-		validMoves = __actions
-		# random.randrange ( len ( self.__actions )
-		# Updating GameState based on percepts
-		if stench:
-		    if 's' not in self._gameState[self._X][self._Y]:
-		    	self._gameState[self._X][self._Y].append('s')		
-		    	possibleThreat(self,'w')
-		if breeze:
-		    if 'br' not in self._gameState[self._X][self._Y]:
-				self._gameState[self._X][self._Y].append('br')
-				possibleThreat(self,'p')
-			if self._currentLocation == (0,0):
-				#TODO: Change in future; right now, climb out automatically
-				nextMove = Agent.Action.CLIMB 
-				self._prevAction = nextMove
-				return nextMove
-		if glitter:
-			if 'gl' not in self._gameState[self._X][self._Y]:
-				self._gameState[self._X][self._Y].append('gl')
-	    	self._hasGold = True		
-		   	nextMove = Agent.Action.GRAB
-		    self._prevAction = nextMove
-		    return nextMove
-		if bump:
-		    #update rowLen or cowLen here
-		    if self._direction == 'right':
-				self._colLen = self._Y + 1
-		    elif self._direction == 'up':
-				self._rowLen = self._X + 1
-		if scream:
-		    self._deadWumpus = True
-		else:
-		    pass
-	   	    #randomly choose direction
-		#if we know we're in first row, we know not to turn right
-
-		if nextMove == Agent.Action.SHOOT:
-		    self._hasArrow = False
-
-		self._prevAction = nextMove
-	        return nextMove
+		self.x = 0
+		self.y = 0 
+		self.direction = 'right'
+		self.hasArrow = True 
+		self.hasGold = False
+		self.wumpusDead = False 
+		self._gameState = [[['@','v'],[],[],[]],[[],[],[],[]],[[],[],[],[]],[[],[],[],[]]]
+		self.visited = []
+		self.retrace = False 
+        # ======================================================================
+        # YOUR CODE ENDS
+        # ======================================================================
+	
+		
+	
+	def getAction( self, stench, breeze, glitter, bump, scream ):
+        # ======================================================================
+        # YOUR CODE BEGINS
+        # ======================================================================
+		if(breeze): #retrace steps and climb out 
+			self.retrace = True 
+		if(scream): 
+			self.wumpusDead = True 
+		if(stench): #retrace steps and climb out 
+			self.retrace = True 
+		''' originally made the agent shoot and then move forward but average score is higher if agent climbs out when stench perceived
+		if(stench and not breeze): 
+			if(not self.wumpusDead and self.hasArrow): 
+				return Agent.Action.SHOOT
+			if(not self.wumpusDead and not self.hasArrow):
+				self.x += 1
+				return Agent.Action.FORWARD
+			if(self.wumpusDead):
+				self.x += 1
+				return Agent.Action.FORWARD'''
+		if(bump): #retrace steps and climb out  
+			self.retrace = True
+		if(glitter): #grab the gold and then retrace steps and climb out 
+			self.retrace = True 
+			return Agent.Action.GRAB
+		if(self.retrace):
+			if(self.x != 0):
+				if(self.direction == 'right'):
+					self.direction = 'up'
+					return Agent.Action.TURN_LEFT
+				if(self.direction == 'up'):
+					self.direction = 'left'
+					return Agent.Action.TURN_LEFT
+				if(self.direction == 'left'):
+					self.x -= 1
+					return Agent.Action.FORWARD
+			elif(self.x == 0 and self.y == 0):
+				return Agent.Action.CLIMB
+		else: #move forward if no percepts given  
+			self.x += 1
+			return Agent.Action.FORWARD
         # ======================================================================
         # YOUR CODE ENDS
         # ======================================================================
     
     # ======================================================================
     # YOUR CODE BEGINS
-    __actions = [
-        Agent.Action.TURN_LEFT,
-        Agent.Action.TURN_RIGHT,
-        Agent.Action.FORWARD,
-        Agent.Action.CLIMB,
-        Agent.Action.SHOOT,
-        Agent.Action.GRAB
-    ]
-    def validActions(self):
-        pass
-
-    def possibleThreat(self,threat_type):
-	# Check past move / if square has been visited
-	threat = 'p' + threat_type
-	if pw == True:
-            if self._X != (self._rowLen - 1) and ('v' not in self._gameState[self._X+1][self._Y]):
-		#TODO: if row's not in gameState, add it! Same w/ columns
-		if len(self._gameState) == (self._X + 1):
-		    self._gameState.append([[],[],[],[]]) #TODO: Change this
-		self._gameState[self._X+1][self._Y].append(threat)
-	    if self._Y != (self._colLen - 1) and ('v' not in self._gameState[self._X][self._Y + 1]):            
-	        if len(self._gameState[self._X]) == (self._Y + 1):
-		    self._gameState[self._X].append([])
-		self._gameState[self._X][self._Y+1].append(threat)
-	    if self._X != 0 and ('v' not in self._gameState[self._X-1][self._Y]):
-		self._gameState[self._X-1][self._Y].append(threat)
-	    if self._Y != 0 and ('v' not in self._gameState[self._X][self._Y-1]):
-		self._gameState[self._X][self._Y-1].append(threat)
-	  		 
     # ======================================================================
-
+	
     
     # ======================================================================
     # YOUR CODE ENDS
