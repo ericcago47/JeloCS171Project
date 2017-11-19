@@ -19,7 +19,7 @@
 
 from Agent import Agent
 from collections import defaultdict 
-import inspect 
+from random import choice 
 
 class MyAI ( Agent ):
 
@@ -41,7 +41,9 @@ class MyAI ( Agent ):
 		self.moves = [] 
 		self.inProgress = False 
 		self.moveHistory = [] 	
-		self.retrace = False 		
+		self.retrace = False 	
+		self.iterate = False 	
+		self.retraceStack = []
 		pass
         # ======================================================================
         # YOUR CODE ENDS
@@ -72,16 +74,25 @@ class MyAI ( Agent ):
 #			self.gameNodes[(self.x, self.y)].extend(generateNeighbors(self.x,self.y))
 
 	def updatePossibleThreat(self, threat:str):
-		#possiblePits = generateNeighbors(self.x,self.y) 
+		'''Adds Possbles to neighboring nodes IFF they haven't been visited, it has not been labeled no threat, and it has not been labeled/marked already (avoid duplicates)'''
 		for node in self.gameNodes[(self.x, self.y)]:
 			if node not in self.gameNodes and ('N' + threat) not in self.gameStates[node] and ('P' + threat) not in self.gameStates[node]:  #check that the node isnt visited because that means it is safe  
 				self.gameStates[node].append('P'+threat)  
 
-	def removeThreat(self, threat: str):
-		#implement inspect stuff 
+	def noSameThreat(self, threat: str): 
+		'''Checks if neighbors' states have same possible threat, and marks no threat if it doesnt'''
+		for node in self.gameNodes[(self.x,self.y)]:
+			if node in self.gameStates and ('P' + threat) not in self.gameStates[node]: #if neighbors haven't been marked with that possible threat, then we know for sure that no pit exists in that direction
+				self.gameStates[node].append('N' + threat)
+
+
+	def removeThreat(self, threat: str): #threat is OPPOSITE 
+		'''If neighbor has a state, and that state is possible opposite threat, remove it and mark it NOT opposite threat. 
+			Even if neighbor does not have a state, mark that it does not have an opposite threat. 
+			If  neighbor has NP and NW mark it S'''
 		neighbors = self.gameNodes[(self.x,self.y)] 
 		for node in neighbors: 
-			if node in self.gameStates.keys(): #check dictionary syntax --if node is a key in gameStates  
+			if node in self.gameStates.keys(): #check dictionary syntax --if node is a key in gameStates , if neighbor has a state 
 				if ('P' + threat) in self.gameStates[node]:
 					self.gameStates[node].remove('P'+threat) 
 					self.gameStates[node].append('N' + threat)
@@ -90,13 +101,17 @@ class MyAI ( Agent ):
 							self.gameStates[node] = ['S']
 					elif 'NW' in self.gameState[node]: 
 							self.gameStates[node] = ['S']
+			else:	
+				self.gameStates[node].append('N'+ threat) 
+				
 	def removePW(self): 
+		'''If we kill the wumpus, removes all PW from the entire gameboard '''
 		for node in self.gameNodes:
 			if 'PW' in self.gameStates[node]: 
 				self.gameStates[node].remove('PW') 
 
-	def markSafe(self): #if a square is safe AND HAS NO PERCEPTS , then all of its immediate (+-1)[so its not infinite] neighbors are safe 
-	#need to reconsider this axiom and when how to represent that it has no percepts  ------> called in getAction if stench and breeze are false  
+	def markSafe(self):
+		'''if a square is safe AND HAS NO PERCEPTS , then all of its immediate (+-1)[so its not infinite] neighbors are safe (only called when stench AND breeze are false''' 
 		if self.gameStates[(self.x,self.y)] == ['S']: 
 			neighbors = self.generateNeighbors(self.x,self.y) 
 			for node in neighbors: 
@@ -107,7 +122,7 @@ class MyAI ( Agent ):
 		result = []	
 		for move in possibleMoves: 
 			if move in self.gameStates.keys():
-				if 'PP' not in self.gameStates[move]: 
+				if 'PP' not in self.gameStates[move] and 'PW' not in self.gameStates[move] and 'P' not in self.gameStates[move] and 'W' not in self.gameStates[move]: 
 					result.append(move)
 			else:
 				result.append(move)
@@ -117,7 +132,19 @@ class MyAI ( Agent ):
 		
 	def findBestMove(self): #returns move with the highest evaluaton based on heuristic function (# turns/points lost) 
 		safeMoves = self.generateSafeMoves()
-		moveValues = {}
+		print('safeMoves: ', safeMoves) 
+		if len(safeMoves) == 0: return 'climb'
+		move = choice(safeMoves)  
+		 	
+		if self.x - move[0] == 1:
+			return 'west'
+		elif self.x - move[0] == -1: 
+			return 'east'
+		elif self.y-move[1] == 1: 
+			 return 'south'
+		elif self.y-move[1] == -1: 
+			return 'north'	
+		'''moveValues = {}
 		if len(safeMoves) == 0: return 'climb'
 		for move in safeMoves: 
 			if self.x - move[0] == 1: moveValues['west'] = self.evaluateMoveWest() 
@@ -127,13 +154,12 @@ class MyAI ( Agent ):
 		print('moveValues in findBestMove: ', moveValues)  
 		print('x,y in findBestMove: ', self.x, ',', self.y) 
 		return max(moveValues, key = moveValues.get) 
-	
+		'''	
 	def generateChosenStack(self,move): 
 		if move == 'west': return self.generateWestMoveStack()
 		elif move == 'east': return self.generateEastMoveStack() 
 		elif move == 'south': return self.generateSouthMoveStack() 
 		elif move == 'north': return self.generateNorthMoveStack()
-		 
 		elif move == 'climb': return ['CLIMB']
 				
 	def generateEastMoveStack(self): 
@@ -218,22 +244,31 @@ class MyAI ( Agent ):
 		elif self.direction == 'Down': self.y -= 1
 		elif self.direction == 'Up': self.y += 1		
 
+	def backtrack(self):
+		for move in range(len(self.moveHistory)): 
+			lastMove = self.moveHistory[len(self.moveHistory)-1-move]
+			if lastMove == 'TURN_LEFT': 
+				self.moves.append('TURN_RIGHT')
+			elif lastMove == 'TURN_RIGHT':
+				self.moves.append('TURN_LEFT')
+			elif lastMove == 'FORWARD': 
+				self.moves.append('FORWARD')
+		self.moves.append('CLIMB') 
+
 	def getAction( self, stench, breeze, glitter, bump, scream ):
 		# ======================================================================
 		# YOUR CODE BEGINS
 		# ======================================================================
-
-		if self.retrace: 
-			for move in self.moveHistory:
-			
-
 		self.updateGameNodes() 
 		if not stench and not breeze:
 			self.markSafe()
 		
 		if glitter: 
 			self.hasGold = True
-			self.retrace = True 
+			self.inProgress = True 
+			self.moveHistory.pop() 	
+			self.moves = ['TURN_LEFT', 'TURN_LEFT', 'FORWARD']
+			self.backtrack() 	 
 			return Agent.Action.GRAB
 
 		if bump: 
@@ -247,21 +282,31 @@ class MyAI ( Agent ):
 			elif self.direction == 'Up': 
 				self.colLen = self.y 
 				self.y -= 1
-				for node in self.gameNodes: 
+				for node in sel.gameNodes:  
 					if node[1] == self.y: 
-						self.gameNodes[node].remove((node[0], node[1]+1)) #error
+						self.gameNodes[node].remove((node[0], node[1]+1)) #error list.remove(x) is not in the list 
 				self.gameNodes.pop((self.x, self.y+1)) 
 		if scream: 
 			self.wumpusDead = True 
 			self.removePW()
 
 		if stench:
+			if breeze and self.x == 1 and self.y == 1: 
+				return Agent.Action.CLIMB		
 			if not self.wumpusDead: 
 				self.updatePossibleThreat('W')
 			if not breeze: 
 				self.removeThreat('P')
-			if self.hasArrow:  
+			if self.hasArrow and not self.inProgress:  
 				self.hasArrow = False
+				if self.direction == 'Right': 
+					self.gameStates[(self.x+1, self.y)].remove('PW') 
+				elif self.direction == 'Left': 
+					self.gameStates[(self.x-1, self.y)].remove('PW') 
+				elif self.direction == 'Up': 
+					self.gameStates[(self.x,self.y+1)].remove('PW') 
+				elif self.direction == 'Down': 
+					self.gameStates[(self.x, self.y-1)].remove('PW') 
 				return Agent.Action.SHOOT
 
 		if breeze: 
@@ -275,6 +320,9 @@ class MyAI ( Agent ):
 			self.inProgress = True 
 
 		if self.inProgress: 
+			if self.hasGold and self.x == 1 and self.y == 1: 
+				return Agent.Action.CLIMB
+			print('self.moves: ', self.moves) 
 			if len(self.moves) == 1: self.inProgress = False 
 			move = self.moves.pop(0)
 			self.moveHistory.append(move) 
