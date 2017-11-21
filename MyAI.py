@@ -52,11 +52,17 @@ class MyAI ( Agent ):
 		neighbors = [] 
 		if x >= 2:
 			neighbors.append((x-1, y)) #generate the left neighbor 
-		if self.rowLen == None or self.x < self.rowLen: 
+		if self.rowLen == None:
+			neighbors.append((x+1, y)) #generate the right neighbor
+		elif self.x < self.rowLen: 
 			neighbors.append((x+1, y)) #generate the right neighbor
 		if y >= 2:
 			neighbors.append((x, y-1)) #generate the neighbor below
-		if self.colLen == None or self.y < self.colLen: 
+		if self.colLen == None:
+		#	print('Generating upper neighbor (colLen = None)')
+			neighbors.append((x, y+1)) #generate the neighbor above
+		elif self.y < self.colLen:
+		#	print('Generating upper neighbor, (colLen = ',self.colLen,' and self.y = ',self.y,')') 
 			neighbors.append((x, y+1)) #generate the neighbor above
 		return neighbors 
 
@@ -64,15 +70,15 @@ class MyAI ( Agent ):
 		#print('(x,y): (', self.x,self.y,')')
 		#print('GameNodes Dict: ', self.gameNodes) 
 		if (self.x, self.y) not in self.gameNodes.keys():
-			#print('genNbrs: ', self.generateNeighbors(self.x,self.y)) 
+		#	print('genNbrs: ', self.generateNeighbors(self.x,self.y)) 
 			self.gameNodes[(self.x, self.y)] = self.generateNeighbors(self.x,self.y)
-#			self.gameNodes[(self.x, self.y)].extend(generateNeighbors(self.x,self.y))i
+#			self.gameNodes[(self.x, self.y)].extend(generateNeighbors(self.x,self.y))
 
 	def markVisitedAsSafe(self):
 		self.gameStates[(self.x,self.y)] = ['S']
 			
 	def updatePossibleThreat(self, threat:str):
-		'''Adds Possbles to neighboring nodes IFF they haven't been visited, it has not been labeled no threat, and it has not been labeled/marked already (avoid duplicates)'''
+		'''Adds Possibles to neighboring nodes IFF they haven't been visited, it has not been labeled no threat, and it has not been labeled/marked already (avoid duplicates)'''
 		for node in self.gameNodes[(self.x, self.y)]:
 			if node not in self.gameNodes and ('N' + threat) not in self.gameStates[node] and ('P' + threat) not in self.gameStates[node] and 'S' not in self.gameStates[node]:  #check that the node isnt visited because that means it is safe  
 				self.gameStates[node].append('P'+threat)  
@@ -110,6 +116,7 @@ class MyAI ( Agent ):
 	def markSafe(self):
 		'''if a square is safe AND HAS NO PERCEPTS , then all of its immediate (+-1)[so its not infinite] neighbors are safe (only called when stench AND breeze are false''' 
 		if self.gameStates[(self.x,self.y)] == ['S']: 
+		#	print('Generating neighbors from markSafe')
 			neighbors = self.generateNeighbors(self.x,self.y) 
 			for node in neighbors: 
 				self.gameStates[node] = ['S']
@@ -274,7 +281,7 @@ class MyAI ( Agent ):
 				self.direction = 'Left'
 		elif self.direction == 'Up':
 			if move == 'TURN_LEFT': 
-				self.diretcion = 'Left'
+				self.direction = 'Left'
 			elif move == 'TURN_RIGHT':
 				self.direction = 'Right' 
 		
@@ -282,12 +289,16 @@ class MyAI ( Agent ):
 		# ======================================================================
 		# YOUR CODE BEGINS
 		# ======================================================================
+		#print('Score: ',self.score)
 		self.updateGameNodes() 
 		self.markVisitedAsSafe() 
 		
-		if self.score < -150: #test and adjust values   #if <-150 most likely stuck  
-			self.moves  = ['TURN_LEFT', 'TURN_LEFT', 'FORWARD'] 
-			self.backtrack() 
+		if self.score < -150 and self.retrace == False and self.inProgress == False: #test and adjust values   #if <-150 most likely stuck  
+		#	print('Score under -150! Starting to backtrack...')
+			self.moveHistory.pop()
+			self.moves = ['TURN_LEFT', 'TURN_LEFT', 'FORWARD'] 
+			self.backtrack()
+			self.inProgress = True 
 
 		if not stench and not breeze:
 			self.markSafe()
@@ -301,17 +312,20 @@ class MyAI ( Agent ):
 			self.score -= 1
 			return Agent.Action.GRAB
 
-		if bump: 
+		if bump:
+			self.moveHistory.pop() 
 			if self.direction == 'Right': 
-				self.rowLen = self.x
 				self.x -= 1
+				self.rowLen = self.x
+		#		print('rowLen is now: ', self.rowLen)
 				for node in self.gameNodes: 
 					if node[0] == self.x: 
 						self.gameNodes[node].remove((node[0]+1,node[1]))
 				self.gameNodes.pop((self.x+1,self.y))
 			elif self.direction == 'Up': 
-				self.colLen = self.y 
 				self.y -= 1
+				self.colLen = self.y 
+		#		print('colLen is now: ', self.colLen)
 				for node in self.gameNodes:  
 					if node[1] == self.y: 
 						self.gameNodes[node].remove((node[0], node[1]+1)) #error list.remove(x) is not in the list 
@@ -362,16 +376,16 @@ class MyAI ( Agent ):
 				self.updatePossibleThreat('W')
 			if not breeze: 
 				self.removeThreat('P')
-			if self.hasArrow and not self.inProgress:  
+			if self.hasArrow and not self.inProgress: #TODO: Still may shoot out of bounds!  
 				self.hasArrow = False
-				if self.direction == 'Right': 
+				if self.direction == 'Right' and 'PW' in self.gameStates[(self.x+1, self.y)]: 
 					self.gameStates[(self.x+1, self.y)].remove('PW') 
-				elif self.direction == 'Left': 
+				elif self.direction == 'Left' and 'PW' in self.gameStates[(self.x-1, self.y)]: 
 					self.gameStates[(self.x-1, self.y)].remove('PW') 
-				elif self.direction == 'Up': 
-					self.gameStates[(self.x,self.y+1)].remove('PW') 
-				elif self.direction == 'Down': 
-					self.gameStates[(self.x, self.y-1)].remove('PW') 
+				elif self.direction == 'Up' and 'PW' in self.gameStates[(self.x, self.y+1)]: 
+					self.gameStates[(self.x, self.y+1)].remove('PW') 
+				elif self.direction == 'Down' and 'PW' in self.gameStates[(self.x, self.y-1)]: 
+					self.gameStates[(self.x, self.y-1)].remove('PW')
 				self.moveHistory.append('SHOOT') 
 				self.score -= 10
 				return Agent.Action.SHOOT
@@ -380,6 +394,7 @@ class MyAI ( Agent ):
 			self.updatePossibleThreat('P') 
 			if not stench: 
 				self.removeThreat('W') 
+		
 		if not self.inProgress: 
 			bestMove = self.findBestMove() 
 			if bestMove == 'climb': 
@@ -392,23 +407,23 @@ class MyAI ( Agent ):
 			if (self.hasGold or self.retrace) and self.x == 1 and self.y == 1: 
 				self.score -= 1
 				return Agent.Action.CLIMB
-			#print('self.moves: ', self.moves) 
+		#	print('self.moves: ', self.moves) 
 			if len(self.moves) == 1: self.inProgress = False 
 			move = self.moves.pop(0)
 			self.moveHistory.append(move) 
 			agentMove = 'Agent.Action' + '.' + move  
-			#print('STATES: ') 
-			#for nbr in self.gameNodes[(self.x,self.y)]:
+		#	print('STATES: ') 
+		#	for nbr in self.gameNodes[(self.x,self.y)]:
 			
-				#print(nbr[0],',',nbr[1],': ',self.gameStates[(nbr[0], nbr[1])])
+		#		print(nbr[0],',',nbr[1],': ',self.gameStates[(nbr[0], nbr[1])])
 			if move == 'FORWARD': 
 				self.updateCoordinates() 
-			#print('Current Dir: ', self.direction)
+		#	print('Current Dir: ', self.direction)
 			self.changeDirection(move) 
-			#print('Next Dir: ', self.direction) 
-			#print('Next Coordinates: ', self.x, ',', self.y)
-			#print()
-			#print()
+		#	print('Next Dir: ', self.direction) 
+		#	print('Next Coordinates: ', self.x, ',', self.y)
+		#	print()
+		#	print()
 			self.score -= 1 
 			return eval(agentMove) 
 			
