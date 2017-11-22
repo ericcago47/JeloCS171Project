@@ -1,4 +1,3 @@
-#scp josephe1@openlab.ics.uci.edu:/home/josephe1/171/projects/Wumpus_World_Student/Wumpus_World_Python_Shell/src/MyAI.py "/Volumes/SAVE HERE"
 # ======================================================================
 # FILE:        MyAI.py
 #
@@ -68,11 +67,9 @@ class MyAI ( Agent ):
 
 	def updateGameNodes(self):
 		#print('(x,y): (', self.x,self.y,')')
-		#print('GameNodes Dict: ', self.gameNodes) 
 		if (self.x, self.y) not in self.gameNodes.keys():
 		#	print('genNbrs: ', self.generateNeighbors(self.x,self.y)) 
 			self.gameNodes[(self.x, self.y)] = self.generateNeighbors(self.x,self.y)
-#			self.gameNodes[(self.x, self.y)].extend(generateNeighbors(self.x,self.y))
 		#print('GameNodes Dict: ',self.gameNodes)
 
 	def markVisitedAsSafe(self):
@@ -96,20 +93,16 @@ class MyAI ( Agent ):
 			Even if neighbor does not have a state, mark that it does not have an opposite threat. 
 			If  neighbor has NP and NW mark it S'''
 		neighbors = self.gameNodes[(self.x,self.y)] 
-		#print(neighbors)
 		for node in neighbors:
-			#print(self.gameStates[node]) 
 			if ('N' + threat) not in self.gameStates[node]: self.gameStates[node].append('N' + threat) 
 			if node in self.gameStates.keys(): #check dictionary syntax --if node is a key in gameStates , if neighbor has a state 
 				if ('P' + threat) in self.gameStates[node]:
 					self.gameStates[node].remove('P'+threat) 
-					#print('Removed P'+threat)
 					if threat == 'W':                
 						if 'NP' in self.gameStates[node]: 
 							self.gameStates[node] = ['S']
 					elif 'NW' in self.gameStates[node]: 
 							self.gameStates[node] = ['S']
-			#print(self.gameStates[node])
 				
 	def removePW(self): 
 		'''If we kill the wumpus, removes all PW from the entire gameboard '''
@@ -121,7 +114,6 @@ class MyAI ( Agent ):
 	def markSafe(self):
 		'''if a square is safe AND HAS NO PERCEPTS , then all of its immediate (+-1)[so its not infinite] neighbors are safe (only called when stench AND breeze are false''' 
 		if self.gameStates[(self.x,self.y)] == ['S']: 
-		#	print('Generating neighbors from markSafe')
 			neighbors = self.generateNeighbors(self.x,self.y) 
 			for node in neighbors: 
 				self.gameStates[node] = ['S']
@@ -136,7 +128,6 @@ class MyAI ( Agent ):
 					result.append(move)
 			else:
 				result.append(move)
-		#print('Safe Moves: ', result) 	
 		return result
 
 		
@@ -294,7 +285,7 @@ class MyAI ( Agent ):
 		# ======================================================================
 		# YOUR CODE BEGINS
 		# ======================================================================
-		print('Score: ',self.score)
+		#print('Score: ',self.score)
 		self.updateGameNodes() 
 		
 		self.markVisitedAsSafe() 
@@ -316,7 +307,7 @@ class MyAI ( Agent ):
 			return Agent.Action.GRAB
 
 		if bump:
-			print('Just bumped')
+		#	print('Just bumped')
 			self.moveHistory.pop() 
 			if self.direction == 'Right': 
 				self.x -= 1
@@ -332,15 +323,24 @@ class MyAI ( Agent ):
 					if node[1] == self.y: 
 						self.gameNodes[node].remove((node[0], node[1]+1)) #error list.remove(x) is not in the list 
 				self.gameNodes.pop((self.x, self.y+1))
-			print('End of bump if statement') 
+		#	print('End of bump if statement') 
 
-		if self.score < -150 and self.retrace == False and self.inProgress == False:
-			print('Score under -150! Starting to backtrack...')
-			if self.moveHistory[-1] == 'FORWARD':
+		if self.score < -125 and self.retrace == False and self.inProgress == False:
+		#	print('Score under -150! Starting to backtrack...')
+			if self.moveHistory[-1] == 'FORWARD' or self.moveHistory[-1] == 'SHOOT':
+				if self.moveHistory[-1] == 'SHOOT':
+					self.moveHistory.pop()
 				self.moveHistory.pop()
 				self.moves = ['TURN_LEFT', 'TURN_LEFT', 'FORWARD']
-			else:
-				self.moves = []
+			else: #if the last move before bump was a turn
+				if self.moveHistory[-1] == 'TURN_LEFT':
+					self.moveHistory.pop()
+					self.moveHistory.pop()
+					self.moves = ['TURN_RIGHT', 'TURN_LEFT', 'TURN_LEFT', 'FORWARD']
+				elif self.moveHistory[-1] == 'TURN_RIGHT':
+					self.moveHistory.pop()
+					self.moveHistory.pop()
+					self.moves = ['TURN_LEFT', 'TURN_LEFT', 'TURN_LEFT', 'FORWARD']
 			self.backtrack()
 			self.inProgress = True
 
@@ -353,7 +353,7 @@ class MyAI ( Agent ):
 		
 		if len(self.moveHistory) > 0: 
 			if self.moveHistory[-1] == 'SHOOT' and not self.wumpusDead: #we shot arrow and heard no scream   ##TEST EVERY SCENARIO BY CREATING THE WORLDS 	
-				print('Just shot and wumpus not dead')
+		#		print('Just shot and wumpus not dead')
 				nbrList = self.gameNodes[(self.x,self.y)]  
 				nbrIsWumpus = (len(self.gameNodes[(self.x,self.y)]) == 2) #if only 2 neighbors we know other nbr is for sure a wumpus bc we heard no scream 
 				if self.direction == 'Right':
@@ -381,8 +381,8 @@ class MyAI ( Agent ):
 						for nbr in nbrList:
 							if nbr != (self.x, self.y-1): 
 								self.gameStates[(nbr[0],nbr[1])].append('W') 
-				
-				self.moveHistory.pop() #remove shoot from moveHistory so it doesnt interfere with backtracking 
+				if not self.retrace:
+					self.moveHistory.pop() #remove shoot from moveHistory so it doesnt interfere with backtracking 
 		
 
 		if stench:
@@ -391,13 +391,9 @@ class MyAI ( Agent ):
 				self.score -= 1
 				return Agent.Action.CLIMB		
 			if not self.wumpusDead: 
-				#print('Calling self.updatePossibleThreat(W)')
 				self.updatePossibleThreat('W')
-				#print('Finished calling updatePossibleThreat')
 			if not breeze: 
-				#print('Calling removeThreat(P)')
 				self.removeThreat('P')
-				#print('Finished calling removeThreat(P)')
 			if self.hasArrow and not self.wumpusDead and not self.inProgress and self.retrace == False: #TODO: Still may shoot out of bounds!  
 				self.hasArrow = False
 				if self.direction == 'Right' and 'PW' in self.gameStates[(self.x+1, self.y)]: 
@@ -411,16 +407,15 @@ class MyAI ( Agent ):
 				self.moveHistory.append('SHOOT') 
 				self.score -= 10
 				return Agent.Action.SHOOT
-			print('In stench; no arrow...continuing')
+		#	print('In stench; no arrow...continuing')
 
 		if breeze: 
-			#print('breeze...')
 			self.updatePossibleThreat('P') 
 			if not stench: 
 				self.removeThreat('W') 
 		
 		if not self.inProgress: 
-			print('In not self.inProgress')
+		#	print('In not self.inProgress')
 			bestMove = self.findBestMove() 
 			if bestMove == 'climb': 
 				self.score -= 1
@@ -430,11 +425,11 @@ class MyAI ( Agent ):
 			#print('Exiting not self.inProgress block')
 
 		if self.inProgress: 
-			print('In self.inProgress')
+		#	print('In self.inProgress')
 			if (self.hasGold or self.retrace) and self.x == 1 and self.y == 1: 
 				self.score -= 1
 				return Agent.Action.CLIMB
-			print('self.moves: ', self.moves) 
+		#	print('self.moves: ', self.moves) 
 			if len(self.moves) == 1: self.inProgress = False 
 			move = self.moves.pop(0)
 			self.moveHistory.append(move) 
@@ -447,7 +442,7 @@ class MyAI ( Agent ):
 				self.updateCoordinates() 
 		#	print('Current Dir: ', self.direction)
 			self.changeDirection(move) 
-			#print('Next Dir: ', self.direction) 
+		#	print('Next Dir: ', self.direction) 
 		#	print('Next Coordinates: ', self.x, ',', self.y)
 		#	print()
 		#	print()
