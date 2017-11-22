@@ -48,7 +48,180 @@ class MyAI ( Agent ):
         # ======================================================================
         # YOUR CODE ENDS
         # ======================================================================
-	def generateNeighbors(self, x:int, y:int): 
+	
+	def getAction( self, stench, breeze, glitter, bump, scream ):
+		# ======================================================================
+		# YOUR CODE BEGINS
+		# ======================================================================
+		#print('Score: ',self.score)
+		self.updateGameNodes() 
+		
+		self.markVisitedAsSafe() 
+		#print('markedVisitedAsSafe() happened')
+	
+
+		if not stench and not breeze:
+			#print('Calling self.markSafe()')
+			self.markSafe()
+		
+		if glitter and self.retrace == False: 
+			#print('Picking up glitter')
+			self.hasGold = True
+			self.inProgress = True 
+			self.moveHistory.pop() 	
+			self.moves = ['TURN_LEFT', 'TURN_LEFT', 'FORWARD']
+			self.backtrack() 	 
+			self.score -= 1
+			return Agent.Action.GRAB
+
+		if bump:
+			#print('Just bumped')
+			self.moveHistory.pop() 
+			if self.direction == 'Right': 
+				self.x -= 1
+				self.rowLen = self.x
+				for node in self.gameNodes: 
+					if node[0] == self.x: 
+						self.gameNodes[node].remove((node[0]+1,node[1]))
+				self.gameNodes.pop((self.x+1, self.y))
+			elif self.direction == 'Up': 
+				self.y -= 1
+				self.colLen = self.y 
+				for node in self.gameNodes:  
+					if node[1] == self.y: 
+						self.gameNodes[node].remove((node[0], node[1]+1)) #error list.remove(x) is not in the list 
+				self.gameNodes.pop((self.x, self.y+1))
+			#print('End of bump if statement') 
+
+		if self.score < -125 and self.retrace == False and self.inProgress == False:
+			#print('Score under -150! Starting to backtrack...')
+			if self.moveHistory[-1] == 'FORWARD':
+				self.moveHistory.pop()
+				self.moves = ['TURN_LEFT', 'TURN_LEFT', 'FORWARD']
+			else:
+				self.moves = []
+			self.backtrack()
+			self.inProgress = True
+
+		if scream: 
+			#print('Just screamed')
+			self.wumpusDead = True 
+			self.removePW() #removes all PW in game board and replaces them with NW
+			self.moveHistory.pop()
+		 
+		
+		if len(self.moveHistory) > 0: 
+			if self.moveHistory[-1] == 'SHOOT' and not self.wumpusDead: #we shot arrow and heard no scream   ##TEST EVERY SCENARIO BY CREATING THE WORLDS 	
+				#print('Just shot and wumpus not dead')
+				nbrList = self.gameNodes[(self.x,self.y)]  
+				nbrIsWumpus = (len(self.gameNodes[(self.x,self.y)]) == 2) #if only 2 neighbors we know other nbr is for sure a wumpus bc we heard no scream 
+				if self.direction == 'Right':
+					if 'NW' not in self.gameStates[(self.x+1, self.y)]: self.gameStates[(self.x+1, self.y)].append('NW') 
+					if nbrIsWumpus: 
+						for nbr in nbrList: 	
+							if nbr != (self.x+1, self.y): 
+								self.gameStates[(nbr[0],nbr[1])].append('W') 
+					
+				elif self.direction == 'Left': 
+					if 'NW' not in self.gameStates[(self.x-1, self.y)]: self.gameStates[(self.x-1, self.y)].append('NW') 
+					if nbrIsWumpus: 
+						for nbr in nbrList: 
+							if nbr != (self.x-1,self.y):
+								self.gameStates[(nbr[0],nbr[1])].append('W') 
+				elif self.direction == 'Up': 
+					if 'NW' not in self.gameStates[(self.x, self.y+1)]: self.gameStates[(self.x, self.y+1)].append('NW')
+					if nbrIsWumpus: 	
+						for nbr in nbrList: 
+							if nbr != (self.x, self.y+1): 	
+								self.gameStates[(nbr[0],nbr[1])].append('W') 
+				elif self.direction == 'Down': 
+					if 'NW' not in self.gameStates[(self.x, self.y-1)]: self.gameStates[(self.x, self.y-1)].append('NW')
+					if nbrIsWumpus: 
+						for nbr in nbrList:
+							if nbr != (self.x, self.y-1): 
+								self.gameStates[(nbr[0],nbr[1])].append('W') 
+				
+				self.moveHistory.pop() #remove shoot from moveHistory so it doesnt interfere with backtracking 
+		
+
+		if stench:
+			#print('Stench...')
+			if breeze and self.x == 1 and self.y == 1: 
+				self.score -= 1
+				return Agent.Action.CLIMB		
+			if not self.wumpusDead: 
+				#print('Calling self.updatePossibleThreat(W)')
+				self.updatePossibleThreat('W')
+				#print('Finished calling updatePossibleThreat')
+			if not breeze: 
+				#print('Calling removeThreat(P)')
+				self.removeThreat('P')
+				#print('Finished calling removeThreat(P)')
+			if self.hasArrow and not self.wumpusDead and not self.inProgress and self.retrace == False: #TODO: Still may shoot out of bounds!  
+				self.hasArrow = False
+				if self.direction == 'Right' and 'PW' in self.gameStates[(self.x+1, self.y)]: 
+					self.gameStates[(self.x+1, self.y)].remove('PW') 
+				elif self.direction == 'Left' and 'PW' in self.gameStates[(self.x-1, self.y)]: 
+					self.gameStates[(self.x-1, self.y)].remove('PW') 
+				elif self.direction == 'Up' and 'PW' in self.gameStates[(self.x, self.y+1)]: 
+					self.gameStates[(self.x, self.y+1)].remove('PW') 
+				elif self.direction == 'Down' and 'PW' in self.gameStates[(self.x, self.y-1)]: 
+					self.gameStates[(self.x, self.y-1)].remove('PW')
+				self.moveHistory.append('SHOOT') 
+				self.score -= 10
+				return Agent.Action.SHOOT
+			#print('In stench; no arrow...continuing')
+
+		if breeze: 
+			#print('breeze...')
+			self.updatePossibleThreat('P') 
+			if not stench: 
+				self.removeThreat('W') 
+		
+		if not self.inProgress: 
+			#print('In not self.inProgress')
+			bestMove = self.findBestMove() 
+			if bestMove == 'climb': 
+				self.score -= 1
+				return Agent.Action.CLIMB
+			self.moves = self.generateChosenStack(bestMove)
+			self.inProgress = True 
+			#print('Exiting not self.inProgress block')
+
+		if self.inProgress: 
+			#print('In self.inProgress')
+			if (self.hasGold or self.retrace) and self.x == 1 and self.y == 1: 
+				self.score -= 1
+				return Agent.Action.CLIMB
+			#print('self.moves: ', self.moves) 
+			if len(self.moves) == 1: self.inProgress = False 
+			move = self.moves.pop(0)
+			self.moveHistory.append(move) 
+			agentMove = 'Agent.Action' + '.' + move  
+		#	print('STATES: ') 
+		#	for nbr in self.gameNodes[(self.x,self.y)]:
+			
+		#		print(nbr[0],',',nbr[1],': ',self.gameStates[(nbr[0], nbr[1])])
+			if move == 'FORWARD': 
+				self.updateCoordinates() 
+		#	print('Current Dir: ', self.direction)
+			self.changeDirection(move) 
+			#print('Next Dir: ', self.direction) 
+		#	print('Next Coordinates: ', self.x, ',', self.y)
+		#	print()
+		#	print()
+			self.score -= 1 
+			return eval(agentMove) 
+			
+		return Agent.Action.CLIMB
+		# ======================================================================
+		# YOUR CODE ENDS
+		# ======================================================================
+    
+	# ======================================================================
+	# YOUR CODE BEGINS
+	# ======================================================================
+        def generateNeighbors(self, x:int, y:int): 
 		neighbors = [] 
 		if x >= 2:
 			neighbors.append((x-1, y)) #generate the left neighbor 
@@ -59,7 +232,6 @@ class MyAI ( Agent ):
 		if y >= 2:
 			neighbors.append((x, y-1)) #generate the neighbor below
 		if self.colLen == None:
-		#	print('Generating upper neighbor (colLen = None)')
 			neighbors.append((x, y+1)) #generate the neighbor above
 		elif self.y < self.colLen:
 		#	print('Generating upper neighbor, (colLen = ',self.colLen,' and self.y = ',self.y,')') 
@@ -143,7 +315,8 @@ class MyAI ( Agent ):
 	def findBestMove(self): #returns move with the highest evaluaton based on heuristic function (# turns/points lost) 
 		safeMoves = self.generateSafeMoves()
 		if len(safeMoves) == 0: return 'climb'
-		unvisitedNodes = [] 
+		
+		'''unvisitedNodes = [] 
 		for move in safeMoves: 
 			if move not in self.gameNodes: 
 				unvisitedNodes.append(move) 
@@ -159,8 +332,8 @@ class MyAI ( Agent ):
 		elif self.y-move[1] == 1: 
 			 return 'south'
 		elif self.y-move[1] == -1: 
-			return 'north'	
-		'''moveValues = {}
+			return 'north'	'''
+		moveValues = {}
 		if len(safeMoves) == 0: return 'climb'
 		for move in safeMoves: 
 			if self.x - move[0] == 1: moveValues['west'] = self.evaluateMoveWest() 
@@ -168,9 +341,9 @@ class MyAI ( Agent ):
 			elif self.y - move[1] == 1: moveValues['south'] = self.evaluateMoveSouth() 
 			elif self.y - move[1] == -1: moveValues['north'] = self.evaluateMoveNorth()
 		#print('moveValues in findBestMove: ', moveValues)  
-		print('x,y in findBestMove: ', self.x, ',', self.y) 
+		#print('x,y in findBestMove: ', self.x, ',', self.y) 
 		return max(moveValues, key = moveValues.get) 
-		'''	
+			
 	def generateChosenStack(self,move): 
 		if move == 'west': return self.generateWestMoveStack()
 		elif move == 'east': return self.generateEastMoveStack() 
@@ -256,7 +429,7 @@ class MyAI ( Agent ):
 		elif self.direction == 'Down': self.y -= 1
 		elif self.direction == 'Up': self.y += 1		
 
-	def backtrack(self):
+        def backtrack(self):
 		self.retrace = True 
 		for move in range(len(self.moveHistory)): 
 			lastMove = self.moveHistory[len(self.moveHistory)-1-move]
@@ -289,180 +462,6 @@ class MyAI ( Agent ):
 				self.direction = 'Left'
 			elif move == 'TURN_RIGHT':
 				self.direction = 'Right' 
-		
-	def getAction( self, stench, breeze, glitter, bump, scream ):
-		# ======================================================================
-		# YOUR CODE BEGINS
-		# ======================================================================
-		print('Score: ',self.score)
-		self.updateGameNodes() 
-		
-		self.markVisitedAsSafe() 
-		#print('markedVisitedAsSafe() happened')
-	
-
-		if not stench and not breeze:
-			#print('Calling self.markSafe()')
-			self.markSafe()
-		
-		if glitter and self.retrace == False: 
-			#print('Picking up glitter')
-			self.hasGold = True
-			self.inProgress = True 
-			self.moveHistory.pop() 	
-			self.moves = ['TURN_LEFT', 'TURN_LEFT', 'FORWARD']
-			self.backtrack() 	 
-			self.score -= 1
-			return Agent.Action.GRAB
-
-		if bump:
-			print('Just bumped')
-			self.moveHistory.pop() 
-			if self.direction == 'Right': 
-				self.x -= 1
-				self.rowLen = self.x
-				for node in self.gameNodes: 
-					if node[0] == self.x: 
-						self.gameNodes[node].remove((node[0]+1,node[1]))
-				self.gameNodes.pop((self.x+1, self.y))
-			elif self.direction == 'Up': 
-				self.y -= 1
-				self.colLen = self.y 
-				for node in self.gameNodes:  
-					if node[1] == self.y: 
-						self.gameNodes[node].remove((node[0], node[1]+1)) #error list.remove(x) is not in the list 
-				self.gameNodes.pop((self.x, self.y+1))
-			print('End of bump if statement') 
-
-		if self.score < -150 and self.retrace == False and self.inProgress == False:
-			print('Score under -150! Starting to backtrack...')
-			if self.moveHistory[-1] == 'FORWARD':
-				self.moveHistory.pop()
-				self.moves = ['TURN_LEFT', 'TURN_LEFT', 'FORWARD']
-			else:
-				self.moves = []
-			self.backtrack()
-			self.inProgress = True
-
-		if scream: 
-			#print('Just screamed')
-			self.wumpusDead = True 
-			self.removePW() #removes all PW in game board and replaces them with NW
-			self.moveHistory.pop()
-		 
-		
-		if len(self.moveHistory) > 0: 
-			if self.moveHistory[-1] == 'SHOOT' and not self.wumpusDead: #we shot arrow and heard no scream   ##TEST EVERY SCENARIO BY CREATING THE WORLDS 	
-				print('Just shot and wumpus not dead')
-				nbrList = self.gameNodes[(self.x,self.y)]  
-				nbrIsWumpus = (len(self.gameNodes[(self.x,self.y)]) == 2) #if only 2 neighbors we know other nbr is for sure a wumpus bc we heard no scream 
-				if self.direction == 'Right':
-					if 'NW' not in self.gameStates[(self.x+1, self.y)]: self.gameStates[(self.x+1, self.y)].append('NW') 
-					if nbrIsWumpus: 
-						for nbr in nbrList: 	
-							if nbr != (self.x+1, self.y): 
-								self.gameStates[(nbr[0],nbr[1])].append('W') 
-					
-				elif self.direction == 'Left': 
-					if 'NW' not in self.gameStates[(self.x-1, self.y)]: self.gameStates[(self.x-1, self.y)].append('NW') 
-					if nbrIsWumpus: 
-						for nbr in nbrList: 
-							if nbr != (self.x-1,self.y):
-								self.gameStates[(nbr[0],nbr[1])].append('W') 
-				elif self.direction == 'Up': 
-					if 'NW' not in self.gameStates[(self.x, self.y+1)]: self.gameStates[(self.x, self.y+1)].append('NW')
-					if nbrIsWumpus: 	
-						for nbr in nbrList: 
-							if nbr != (self.x, self.y+1): 	
-								self.gameStates[(nbr[0],nbr[1])].append('W') 
-				elif self.direction == 'Down': 
-					if 'NW' not in self.gameStates[(self.x, self.y-1)]: self.gameStates[(self.x, self.y-1)].append('NW')
-					if nbrIsWumpus: 
-						for nbr in nbrList:
-							if nbr != (self.x, self.y-1): 
-								self.gameStates[(nbr[0],nbr[1])].append('W') 
-				
-				self.moveHistory.pop() #remove shoot from moveHistory so it doesnt interfere with backtracking 
-		
-
-		if stench:
-			#print('Stench...')
-			if breeze and self.x == 1 and self.y == 1: 
-				self.score -= 1
-				return Agent.Action.CLIMB		
-			if not self.wumpusDead: 
-				#print('Calling self.updatePossibleThreat(W)')
-				self.updatePossibleThreat('W')
-				#print('Finished calling updatePossibleThreat')
-			if not breeze: 
-				#print('Calling removeThreat(P)')
-				self.removeThreat('P')
-				#print('Finished calling removeThreat(P)')
-			if self.hasArrow and not self.wumpusDead and not self.inProgress and self.retrace == False: #TODO: Still may shoot out of bounds!  
-				self.hasArrow = False
-				if self.direction == 'Right' and 'PW' in self.gameStates[(self.x+1, self.y)]: 
-					self.gameStates[(self.x+1, self.y)].remove('PW') 
-				elif self.direction == 'Left' and 'PW' in self.gameStates[(self.x-1, self.y)]: 
-					self.gameStates[(self.x-1, self.y)].remove('PW') 
-				elif self.direction == 'Up' and 'PW' in self.gameStates[(self.x, self.y+1)]: 
-					self.gameStates[(self.x, self.y+1)].remove('PW') 
-				elif self.direction == 'Down' and 'PW' in self.gameStates[(self.x, self.y-1)]: 
-					self.gameStates[(self.x, self.y-1)].remove('PW')
-				self.moveHistory.append('SHOOT') 
-				self.score -= 10
-				return Agent.Action.SHOOT
-			print('In stench; no arrow...continuing')
-
-		if breeze: 
-			#print('breeze...')
-			self.updatePossibleThreat('P') 
-			if not stench: 
-				self.removeThreat('W') 
-		
-		if not self.inProgress: 
-			print('In not self.inProgress')
-			bestMove = self.findBestMove() 
-			if bestMove == 'climb': 
-				self.score -= 1
-				return Agent.Action.CLIMB
-			self.moves = self.generateChosenStack(bestMove)
-			self.inProgress = True 
-			#print('Exiting not self.inProgress block')
-
-		if self.inProgress: 
-			print('In self.inProgress')
-			if (self.hasGold or self.retrace) and self.x == 1 and self.y == 1: 
-				self.score -= 1
-				return Agent.Action.CLIMB
-			print('self.moves: ', self.moves) 
-			if len(self.moves) == 1: self.inProgress = False 
-			move = self.moves.pop(0)
-			self.moveHistory.append(move) 
-			agentMove = 'Agent.Action' + '.' + move  
-		#	print('STATES: ') 
-		#	for nbr in self.gameNodes[(self.x,self.y)]:
-			
-		#		print(nbr[0],',',nbr[1],': ',self.gameStates[(nbr[0], nbr[1])])
-			if move == 'FORWARD': 
-				self.updateCoordinates() 
-		#	print('Current Dir: ', self.direction)
-			self.changeDirection(move) 
-			#print('Next Dir: ', self.direction) 
-		#	print('Next Coordinates: ', self.x, ',', self.y)
-		#	print()
-		#	print()
-			self.score -= 1 
-			return eval(agentMove) 
-			
-		return Agent.Action.CLIMB
-		# ======================================================================
-		# YOUR CODE ENDS
-		# ======================================================================
-    
-	# ======================================================================
-	# YOUR CODE BEGINS
-	# ======================================================================
-
     
 	# ======================================================================
 	# YOUR CODE ENDS
