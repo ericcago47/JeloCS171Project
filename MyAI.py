@@ -47,6 +47,185 @@ class MyAI ( Agent ):
         # ======================================================================
         # YOUR CODE ENDS
         # ======================================================================
+ 
+		
+	def getAction( self, stench, breeze, glitter, bump, scream ):
+		# ======================================================================
+		# YOUR CODE BEGINS
+		# ======================================================================
+		#print('Score: ',self.score)
+		self.updateGameNodes() 
+		
+		self.markVisitedAsSafe() 
+		#print('markedVisitedAsSafe() happened')
+	
+
+		if not stench and not breeze:
+			#print('Calling self.markSafe()')
+			self.markSafe()
+		
+		if glitter and self.retrace == False: 
+			#print('Picking up glitter')
+			self.hasGold = True
+			self.inProgress = True 
+			self.moveHistory.pop() 	
+			self.moves = ['TURN_LEFT', 'TURN_LEFT', 'FORWARD']
+			self.backtrack() 	 
+			self.score -= 1
+			return Agent.Action.GRAB
+
+		if bump:
+			#print('Just bumped')
+			self.moveHistory.pop() 
+			if self.direction == 'Right': 
+				self.x -= 1
+				self.rowLen = self.x
+				for node in self.gameNodes: 
+					if node[0] == self.x: 
+						self.gameNodes[node].remove((node[0]+1,node[1]))
+				self.gameNodes.pop((self.x+1, self.y))
+			elif self.direction == 'Up': 
+				self.y -= 1
+				self.colLen = self.y 
+				for node in self.gameNodes:  
+					if node[1] == self.y: 
+						self.gameNodes[node].remove((node[0], node[1]+1)) #error list.remove(x) is not in the list 
+				self.gameNodes.pop((self.x, self.y+1))
+			#print('End of bump if statement') 
+
+		if self.score < -125 and self.retrace == False and self.inProgress == False:
+			#print('Score under -125! Starting to backtrack...')
+			if self.moveHistory[-1] == 'FORWARD' or self.moveHistory[-1] == 'SHOOT':
+				if self.moveHistory[-1] == 'SHOOT':
+					self.moveHistory.pop()
+				self.moveHistory.pop()
+				self.moves = ['TURN_LEFT', 'TURN_LEFT', 'FORWARD']
+			else: #if the last move before bump was a turn
+				if self.moveHistory[-1] == 'TURN_LEFT':
+					self.moveHistory.pop()
+					self.moveHistory.pop()
+					self.moves = ['TURN_RIGHT', 'TURN_LEFT', 'TURN_LEFT', 'FORWARD']
+				elif self.moveHistory[-1] == 'TURN_RIGHT':
+					self.moveHistory.pop()
+					self.moveHistory.pop()
+					self.moves = ['TURN_LEFT', 'TURN_LEFT', 'TURN_LEFT', 'FORWARD']
+			self.backtrack()
+			self.inProgress = True
+
+		if scream: 
+			#print('Just screamed')
+			self.wumpusDead = True 
+			self.removePW() #removes all PW in game board and replaces them with NW
+			if not self.retrace:
+				self.moveHistory.pop()
+		 
+		
+		if len(self.moveHistory) > 0: 
+			if self.moveHistory[-1] == 'SHOOT' and not self.wumpusDead: #we shot arrow and heard no scream   ##TEST EVERY SCENARIO BY CREATING THE WORLDS 	
+				#print('Just shot and wumpus not dead')
+				nbrList = self.gameNodes[(self.x,self.y)]  
+				nbrIsWumpus = (len(self.gameNodes[(self.x,self.y)]) == 2) #if only 2 neighbors we know other nbr is for sure a wumpus bc we heard no scream 
+				if self.direction == 'Right':
+					if 'NW' not in self.gameStates[(self.x+1, self.y)]: self.gameStates[(self.x+1, self.y)].append('NW') 
+					if nbrIsWumpus: 
+						for nbr in nbrList: 	
+							if nbr != (self.x+1, self.y): 
+								self.gameStates[(nbr[0],nbr[1])].append('W') 
+					
+				elif self.direction == 'Left': 
+					if 'NW' not in self.gameStates[(self.x-1, self.y)]: self.gameStates[(self.x-1, self.y)].append('NW') 
+					if nbrIsWumpus: 
+						for nbr in nbrList: 
+							if nbr != (self.x-1,self.y):
+								self.gameStates[(nbr[0],nbr[1])].append('W') 
+				elif self.direction == 'Up': 
+					if 'NW' not in self.gameStates[(self.x, self.y+1)]: self.gameStates[(self.x, self.y+1)].append('NW')
+					if nbrIsWumpus: 	
+						for nbr in nbrList: 
+							if nbr != (self.x, self.y+1): 	
+								self.gameStates[(nbr[0],nbr[1])].append('W') 
+				elif self.direction == 'Down': 
+					if 'NW' not in self.gameStates[(self.x, self.y-1)]: self.gameStates[(self.x, self.y-1)].append('NW')
+					if nbrIsWumpus: 
+						for nbr in nbrList:
+							if nbr != (self.x, self.y-1): 
+								self.gameStates[(nbr[0],nbr[1])].append('W') 
+				if not self.retrace:
+					self.moveHistory.pop() #remove shoot from moveHistory so it doesnt interfere with backtracking 
+		
+
+		if stench:
+			#print('Stench...')
+			if breeze and self.x == 1 and self.y == 1: 
+				self.score -= 1
+				return Agent.Action.CLIMB		
+			if not self.wumpusDead: 
+				self.updatePossibleThreat('W')
+			if not breeze: 
+				self.removeThreat('P')
+			if self.hasArrow and not self.wumpusDead and not self.inProgress and self.retrace == False: #TODO: Still may shoot out of bounds!  
+				self.hasArrow = False
+				if self.direction == 'Right' and 'PW' in self.gameStates[(self.x+1, self.y)]: 
+					self.gameStates[(self.x+1, self.y)].remove('PW') 
+				elif self.direction == 'Left' and 'PW' in self.gameStates[(self.x-1, self.y)]: 
+					self.gameStates[(self.x-1, self.y)].remove('PW') 
+				elif self.direction == 'Up' and 'PW' in self.gameStates[(self.x, self.y+1)]: 
+					self.gameStates[(self.x, self.y+1)].remove('PW') 
+				elif self.direction == 'Down' and 'PW' in self.gameStates[(self.x, self.y-1)]: 
+					self.gameStates[(self.x, self.y-1)].remove('PW')
+				self.moveHistory.append('SHOOT') 
+				self.score -= 10
+				return Agent.Action.SHOOT
+			#print('In stench; no arrow...continuing')
+
+		if breeze: 
+			self.updatePossibleThreat('P') 
+			if not stench: 
+				self.removeThreat('W') 
+		
+		if not self.inProgress: 
+		#	print('In not self.inProgress')
+			bestMove = self.findBestMove() 
+			if bestMove == 'climb': 
+				self.score -= 1
+				return Agent.Action.CLIMB
+			self.moves = self.generateChosenStack(bestMove)
+			self.inProgress = True 
+			#print('Exiting not self.inProgress block')
+
+		if self.inProgress: 
+		#	print('In self.inProgress')
+			if (self.hasGold or self.retrace) and self.x == 1 and self.y == 1: 
+				self.score -= 1
+				return Agent.Action.CLIMB
+			#print('self.moves: ', self.moves) 
+			if len(self.moves) == 1: self.inProgress = False 
+			move = self.moves.pop(0)
+			self.moveHistory.append(move) 
+			agentMove = 'Agent.Action' + '.' + move  
+		#	print('STATES: ') 
+		#	for nbr in self.gameNodes[(self.x,self.y)]:
+			
+		#		print(nbr[0],',',nbr[1],': ',self.gameStates[(nbr[0], nbr[1])])
+			if move == 'FORWARD': 
+				self.updateCoordinates() 
+			#print('Current Dir: ', self.direction)
+			self.changeDirection(move) 
+		#	print('Next Dir: ', self.direction) 
+		#	print('Next Coordinates: ', self.x, ',', self.y)
+		#	print()
+		#	print()
+			self.score -= 1 
+			return eval(agentMove) 
+			
+		return Agent.Action.CLIMB
+		# ======================================================================
+		# YOUR CODE ENDS
+		# ======================================================================
+    
+	# ======================================================================
+	# YOUR CODE BEGINS
+	# ======================================================================
 	def generateNeighbors(self, x:int, y:int): 
 		neighbors = [] 
 		if x >= 2:
@@ -279,185 +458,7 @@ class MyAI ( Agent ):
 			if move == 'TURN_LEFT': 
 				self.direction = 'Left'
 			elif move == 'TURN_RIGHT':
-				self.direction = 'Right' 
-		
-	def getAction( self, stench, breeze, glitter, bump, scream ):
-		# ======================================================================
-		# YOUR CODE BEGINS
-		# ======================================================================
-		#print('Score: ',self.score)
-		self.updateGameNodes() 
-		
-		self.markVisitedAsSafe() 
-		#print('markedVisitedAsSafe() happened')
-	
-
-		if not stench and not breeze:
-			#print('Calling self.markSafe()')
-			self.markSafe()
-		
-		if glitter and self.retrace == False: 
-			#print('Picking up glitter')
-			self.hasGold = True
-			self.inProgress = True 
-			self.moveHistory.pop() 	
-			self.moves = ['TURN_LEFT', 'TURN_LEFT', 'FORWARD']
-			self.backtrack() 	 
-			self.score -= 1
-			return Agent.Action.GRAB
-
-		if bump:
-		#	print('Just bumped')
-			self.moveHistory.pop() 
-			if self.direction == 'Right': 
-				self.x -= 1
-				self.rowLen = self.x
-				for node in self.gameNodes: 
-					if node[0] == self.x: 
-						self.gameNodes[node].remove((node[0]+1,node[1]))
-				self.gameNodes.pop((self.x+1, self.y))
-			elif self.direction == 'Up': 
-				self.y -= 1
-				self.colLen = self.y 
-				for node in self.gameNodes:  
-					if node[1] == self.y: 
-						self.gameNodes[node].remove((node[0], node[1]+1)) #error list.remove(x) is not in the list 
-				self.gameNodes.pop((self.x, self.y+1))
-		#	print('End of bump if statement') 
-
-		if self.score < -125 and self.retrace == False and self.inProgress == False:
-		#	print('Score under -150! Starting to backtrack...')
-			if self.moveHistory[-1] == 'FORWARD' or self.moveHistory[-1] == 'SHOOT':
-				if self.moveHistory[-1] == 'SHOOT':
-					self.moveHistory.pop()
-				self.moveHistory.pop()
-				self.moves = ['TURN_LEFT', 'TURN_LEFT', 'FORWARD']
-			else: #if the last move before bump was a turn
-				if self.moveHistory[-1] == 'TURN_LEFT':
-					self.moveHistory.pop()
-					self.moveHistory.pop()
-					self.moves = ['TURN_RIGHT', 'TURN_LEFT', 'TURN_LEFT', 'FORWARD']
-				elif self.moveHistory[-1] == 'TURN_RIGHT':
-					self.moveHistory.pop()
-					self.moveHistory.pop()
-					self.moves = ['TURN_LEFT', 'TURN_LEFT', 'TURN_LEFT', 'FORWARD']
-			self.backtrack()
-			self.inProgress = True
-
-		if scream: 
-			#print('Just screamed')
-			self.wumpusDead = True 
-			self.removePW() #removes all PW in game board and replaces them with NW
-			self.moveHistory.pop()
-		 
-		
-		if len(self.moveHistory) > 0: 
-			if self.moveHistory[-1] == 'SHOOT' and not self.wumpusDead: #we shot arrow and heard no scream   ##TEST EVERY SCENARIO BY CREATING THE WORLDS 	
-		#		print('Just shot and wumpus not dead')
-				nbrList = self.gameNodes[(self.x,self.y)]  
-				nbrIsWumpus = (len(self.gameNodes[(self.x,self.y)]) == 2) #if only 2 neighbors we know other nbr is for sure a wumpus bc we heard no scream 
-				if self.direction == 'Right':
-					if 'NW' not in self.gameStates[(self.x+1, self.y)]: self.gameStates[(self.x+1, self.y)].append('NW') 
-					if nbrIsWumpus: 
-						for nbr in nbrList: 	
-							if nbr != (self.x+1, self.y): 
-								self.gameStates[(nbr[0],nbr[1])].append('W') 
-					
-				elif self.direction == 'Left': 
-					if 'NW' not in self.gameStates[(self.x-1, self.y)]: self.gameStates[(self.x-1, self.y)].append('NW') 
-					if nbrIsWumpus: 
-						for nbr in nbrList: 
-							if nbr != (self.x-1,self.y):
-								self.gameStates[(nbr[0],nbr[1])].append('W') 
-				elif self.direction == 'Up': 
-					if 'NW' not in self.gameStates[(self.x, self.y+1)]: self.gameStates[(self.x, self.y+1)].append('NW')
-					if nbrIsWumpus: 	
-						for nbr in nbrList: 
-							if nbr != (self.x, self.y+1): 	
-								self.gameStates[(nbr[0],nbr[1])].append('W') 
-				elif self.direction == 'Down': 
-					if 'NW' not in self.gameStates[(self.x, self.y-1)]: self.gameStates[(self.x, self.y-1)].append('NW')
-					if nbrIsWumpus: 
-						for nbr in nbrList:
-							if nbr != (self.x, self.y-1): 
-								self.gameStates[(nbr[0],nbr[1])].append('W') 
-				if not self.retrace:
-					self.moveHistory.pop() #remove shoot from moveHistory so it doesnt interfere with backtracking 
-		
-
-		if stench:
-			#print('Stench...')
-			if breeze and self.x == 1 and self.y == 1: 
-				self.score -= 1
-				return Agent.Action.CLIMB		
-			if not self.wumpusDead: 
-				self.updatePossibleThreat('W')
-			if not breeze: 
-				self.removeThreat('P')
-			if self.hasArrow and not self.wumpusDead and not self.inProgress and self.retrace == False: #TODO: Still may shoot out of bounds!  
-				self.hasArrow = False
-				if self.direction == 'Right' and 'PW' in self.gameStates[(self.x+1, self.y)]: 
-					self.gameStates[(self.x+1, self.y)].remove('PW') 
-				elif self.direction == 'Left' and 'PW' in self.gameStates[(self.x-1, self.y)]: 
-					self.gameStates[(self.x-1, self.y)].remove('PW') 
-				elif self.direction == 'Up' and 'PW' in self.gameStates[(self.x, self.y+1)]: 
-					self.gameStates[(self.x, self.y+1)].remove('PW') 
-				elif self.direction == 'Down' and 'PW' in self.gameStates[(self.x, self.y-1)]: 
-					self.gameStates[(self.x, self.y-1)].remove('PW')
-				self.moveHistory.append('SHOOT') 
-				self.score -= 10
-				return Agent.Action.SHOOT
-		#	print('In stench; no arrow...continuing')
-
-		if breeze: 
-			self.updatePossibleThreat('P') 
-			if not stench: 
-				self.removeThreat('W') 
-		
-		if not self.inProgress: 
-		#	print('In not self.inProgress')
-			bestMove = self.findBestMove() 
-			if bestMove == 'climb': 
-				self.score -= 1
-				return Agent.Action.CLIMB
-			self.moves = self.generateChosenStack(bestMove)
-			self.inProgress = True 
-			#print('Exiting not self.inProgress block')
-
-		if self.inProgress: 
-		#	print('In self.inProgress')
-			if (self.hasGold or self.retrace) and self.x == 1 and self.y == 1: 
-				self.score -= 1
-				return Agent.Action.CLIMB
-		#	print('self.moves: ', self.moves) 
-			if len(self.moves) == 1: self.inProgress = False 
-			move = self.moves.pop(0)
-			self.moveHistory.append(move) 
-			agentMove = 'Agent.Action' + '.' + move  
-		#	print('STATES: ') 
-		#	for nbr in self.gameNodes[(self.x,self.y)]:
-			
-		#		print(nbr[0],',',nbr[1],': ',self.gameStates[(nbr[0], nbr[1])])
-			if move == 'FORWARD': 
-				self.updateCoordinates() 
-		#	print('Current Dir: ', self.direction)
-			self.changeDirection(move) 
-		#	print('Next Dir: ', self.direction) 
-		#	print('Next Coordinates: ', self.x, ',', self.y)
-		#	print()
-		#	print()
-			self.score -= 1 
-			return eval(agentMove) 
-			
-		return Agent.Action.CLIMB
-		# ======================================================================
-		# YOUR CODE ENDS
-		# ======================================================================
-    
-	# ======================================================================
-	# YOUR CODE BEGINS
-	# ======================================================================
-
+				self.direction = 'Right'
     
 	# ======================================================================
 	# YOUR CODE ENDS
