@@ -20,6 +20,7 @@
 from Agent import Agent
 from collections import defaultdict 
 from random import choice 
+from math import sqrt
 
 class MyAI ( Agent ):
 
@@ -44,7 +45,11 @@ class MyAI ( Agent ):
 		self.retrace = False 	
 		self.numVisitedNodes = len(self.gameNodes) 
 		self.score = 0
-		self.safeNodes = defaultdict(list)  
+		self.safeNodes = defaultdict(list) 
+		self.visitedNodes = []
+		self.path = []
+		self.homeSequence = [] 
+		self.onWayHome = False 	
         # ======================================================================
         # YOUR CODE ENDS
         # ======================================================================
@@ -288,31 +293,66 @@ class MyAI ( Agent ):
 				for n in self.gameNodes[nbr]:
 					if 'S' in self.gameStates[n]: 	
 						self.safeNodes[nbr].append(n)
- 
+
+	def calcDist(self, otherX, otherY): 
+		return sqrt((otherX-1)**2 + (otherY-1)**2) 
+		 
 	def findClosestHomeNbr(self): 
+		nbrDist = {}
 		getSafeNodes()
-		nbrDist: {}
 		currNbrs = self.safeNodes[(self.x,self.y)]
 		for nbr in currNbrs: 
-			calcDist()
-		
-		
-		
+			if nbr not in self.visitedNodes: 
+				nbrDist[nbr] = self.calcDist(nbr[0],nbr[1])
+		if len(nbrDist.keys()) == 0: 
+			return self.path.pop()
+		else:
+			minNbr = min(nbrDist, key = nbrDist.get)
+			self.visitedNodes.append(minNbr)
+			self.path.append(minNbr) 
+			return minNbr 
 
-				
-		
-		
+	def startSearchHome(self): 
+		nextDir = None
+		nextCoord = self.findClosestHomeNbr() 
+		if self.x - nextCoord[0] == 1: 
+			direction = 'west' 
+		elif self.x - nextCoord[0] == -1: 
+			direction = 'east' 
+		elif self.y - nextCoord[1] == 1: 
+			direction = 'south'
+		elif self.y - nextCoord[1] == -1:
+			direction = 'north' 
+		return self.generateChosenStack(nextDir) 	
+	
 	def getAction( self, stench, breeze, glitter, bump, scream ):
 		# ======================================================================
 		# YOUR CODE BEGINS
 		# ======================================================================
 		#print('Score: ',self.score)
 		self.updateGameNodes() 
-		
 		self.markVisitedAsSafe() 
 		#print('markedVisitedAsSafe() happened')
-	
+		if self.score < -125 and self.retrace == False and self.inProgress == False:
+			self.retrace = True
+		if self.retrace and not self.onWayHome: 
+			self.homeSequence = self.startSearchHome()
+			self.onWayHome = True 
 
+		if self.retrace and self.onWayHome: 
+			if self.x == 1 and self. y == 1: 
+				self.score -= 1
+				return Agent.Action.CLIMB
+			if len(self.homeSequence) == 1: 
+				self.onWayHome = False
+			nextMove = self.homeSequence.pop(0) 
+			agentMove = 'Agent.Action' + '.' + nextMove 
+			if nextMove == 'FORWARD': 
+				self.updateCoordinates()
+			self.changeDirection(nextMove)
+			self.score -= 1
+			return eval(agentMove) 
+		
 		if not stench and not breeze:
 			#print('Calling self.markSafe()')
 			self.markSafe()
@@ -320,10 +360,11 @@ class MyAI ( Agent ):
 		if glitter and self.retrace == False: 
 			#print('Picking up glitter')
 			self.hasGold = True
-			self.inProgress = True 
+			self.inProgress = False 
+			#self.inProgress = True 
 			self.moveHistory.pop() 	
-			self.moves = ['TURN_LEFT', 'TURN_LEFT', 'FORWARD']
-			self.backtrack() 	 
+			#self.moves = ['TURN_LEFT', 'TURN_LEFT', 'FORWARD']
+			#self.backtrack() 	 
 			self.score -= 1
 			return Agent.Action.GRAB
 
@@ -346,7 +387,7 @@ class MyAI ( Agent ):
 				self.gameNodes.pop((self.x, self.y+1))
 		#	print('End of bump if statement') 
 
-		if self.score < -125 and self.retrace == False and self.inProgress == False:
+'''		if self.score < -125 and self.retrace == False and self.inProgress == False:
 		#	print('Score under -150! Starting to backtrack...')
 			if self.moveHistory[-1] == 'FORWARD' or self.moveHistory[-1] == 'SHOOT':
 				if self.moveHistory[-1] == 'SHOOT':
@@ -364,7 +405,8 @@ class MyAI ( Agent ):
 					self.moves = ['TURN_LEFT', 'TURN_LEFT', 'TURN_LEFT', 'FORWARD']
 			self.backtrack()
 			self.inProgress = True
-
+self.retrace = True
+''' 
 		if scream: 
 			#print('Just screamed')
 			self.wumpusDead = True 
