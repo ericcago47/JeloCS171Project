@@ -64,19 +64,14 @@ class MyAI ( Agent ):
 		if y >= 2:
 			neighbors.append((x, y-1)) #generate the neighbor below
 		if self.colLen == None:
-		#	print('Generating upper neighbor (colLen = None)')
 			neighbors.append((x, y+1)) #generate the neighbor above
 		elif self.y < self.colLen:
-		#	print('Generating upper neighbor, (colLen = ',self.colLen,' and self.y = ',self.y,')') 
 			neighbors.append((x, y+1)) #generate the neighbor above
 		return neighbors 
 
 	def updateGameNodes(self):
-		#print('(x,y): (', self.x,self.y,')')
 		if (self.x, self.y) not in self.gameNodes.keys():
-		#	print('genNbrs: ', self.generateNeighbors(self.x,self.y)) 
 			self.gameNodes[(self.x, self.y)] = self.generateNeighbors(self.x,self.y)
-		#print('GameNodes Dict: ',self.gameNodes)
 
 	def markVisitedAsSafe(self):
 		self.gameStates[(self.x,self.y)] = ['S']
@@ -93,7 +88,6 @@ class MyAI ( Agent ):
 			if node in self.gameStates and ('P' + threat) not in self.gameStates[node]: #if neighbors haven't been marked with that possible threat, then we know for sure that no pit exists in that direction
 				self.gameStates[node].append('N' + threat)
 		
-
 	def removeThreat(self, threat: str): #threat is OPPOSITE 
 		'''If neighbor has a state, and that state is possible opposite threat, remove it and mark it NOT opposite threat. 
 			Even if neighbor does not have a state, mark that it does not have an opposite threat. 
@@ -136,7 +130,6 @@ class MyAI ( Agent ):
 				result.append(move)
 		return result
 
-		
 	def findBestMove(self): #returns move with the highest evaluaton based on heuristic function (# turns/points lost) 
 		safeMoves = self.generateSafeMoves()
 		if len(safeMoves) == 0: return 'climb'
@@ -157,17 +150,7 @@ class MyAI ( Agent ):
 			 return 'south'
 		elif self.y-move[1] == -1: 
 			return 'north'	
-		'''moveValues = {}
-		if len(safeMoves) == 0: return 'climb'
-		for move in safeMoves: 
-			if self.x - move[0] == 1: moveValues['west'] = self.evaluateMoveWest() 
-			elif self.x - move[0] ==  -1: moveValues['east'] = self.evaluateMoveEast()
-			elif self.y - move[1] == 1: moveValues['south'] = self.evaluateMoveSouth() 
-			elif self.y - move[1] == -1: moveValues['north'] = self.evaluateMoveNorth()
-		#print('moveValues in findBestMove: ', moveValues)  
-		print('x,y in findBestMove: ', self.x, ',', self.y) 
-		return max(moveValues, key = moveValues.get) 
-		'''	
+
 	def generateChosenStack(self,move): 
 		if move == 'west': return self.generateWestMoveStack()
 		elif move == 'east': return self.generateEastMoveStack() 
@@ -289,9 +272,8 @@ class MyAI ( Agent ):
 	def getSafeNodes(self):
 		for nbr in self.gameNodes:
 			if 'S' in self.gameStates[nbr]: 
-				self.safeNodes[nbr] = []
 				for n in self.gameNodes[nbr]:
-					if 'S' in self.gameStates[n]: 	
+					if n in self.gameNodes: 
 						self.safeNodes[nbr].append(n)
 
 	def calcDist(self, otherX, otherY): 
@@ -299,31 +281,34 @@ class MyAI ( Agent ):
 		 
 	def findClosestHomeNbr(self): 
 		nbrDist = {}
-		getSafeNodes()
 		currNbrs = self.safeNodes[(self.x,self.y)]
+		self.visitedNodes.append((self.x,self.y))
 		for nbr in currNbrs: 
 			if nbr not in self.visitedNodes: 
 				nbrDist[nbr] = self.calcDist(nbr[0],nbr[1])
-		if len(nbrDist.keys()) == 0: 
-			return self.path.pop()
+		if len(nbrDist.keys()) == 0:
+			firstPop = self.path.pop()
+			return firstPop
 		else:
 			minNbr = min(nbrDist, key = nbrDist.get)
-			self.visitedNodes.append(minNbr)
-			self.path.append(minNbr) 
+			self.path.append((self.x,self.y)) 
 			return minNbr 
 
 	def startSearchHome(self): 
 		nextDir = None
 		nextCoord = self.findClosestHomeNbr() 
 		if self.x - nextCoord[0] == 1: 
-			direction = 'west' 
+			nextDir = 'west' 
 		elif self.x - nextCoord[0] == -1: 
-			direction = 'east' 
+			nextDir = 'east' 
 		elif self.y - nextCoord[1] == 1: 
-			direction = 'south'
+			nextDir = 'south'
 		elif self.y - nextCoord[1] == -1:
-			direction = 'north' 
+			nextDir = 'north'
 		return self.generateChosenStack(nextDir) 	
+
+
+
 	
 	def getAction( self, stench, breeze, glitter, bump, scream ):
 		# ======================================================================
@@ -332,10 +317,18 @@ class MyAI ( Agent ):
 		#print('Score: ',self.score)
 		self.updateGameNodes() 
 		self.markVisitedAsSafe() 
-		#print('markedVisitedAsSafe() happened')
 		if self.score < -125 and self.retrace == False and self.inProgress == False:
+			#print('score less than <-125, turning on self.retrace')
+			self.visitedNodes.append((self.x,self.y))
+			self.path.append((self.x,self.y)) 
+			self.getSafeNodes()
 			self.retrace = True
-		if self.retrace and not self.onWayHome: 
+
+		if self.retrace and not self.onWayHome:
+			if self.x == 1 and self.y == 1: 
+				self.score -=1 
+				return Agent.Action.CLIMB 
+			#print('initializing homeSequence') 
 			self.homeSequence = self.startSearchHome()
 			self.onWayHome = True 
 
@@ -345,7 +338,8 @@ class MyAI ( Agent ):
 				return Agent.Action.CLIMB
 			if len(self.homeSequence) == 1: 
 				self.onWayHome = False
-			nextMove = self.homeSequence.pop(0) 
+			nextMove = self.homeSequence.pop(0)
+			#print('next move home: ', nextMove)  
 			agentMove = 'Agent.Action' + '.' + nextMove 
 			if nextMove == 'FORWARD': 
 				self.updateCoordinates()
@@ -366,8 +360,12 @@ class MyAI ( Agent ):
 			#self.moves = ['TURN_LEFT', 'TURN_LEFT', 'FORWARD']
 			#self.backtrack() 	 
 			self.score -= 1
+			self.retrace = True 
+			self.visitedNodes.append((self.x,self.y))
+			self.path.append((self.x,self.y))
+			self.getSafeNodes()
 			return Agent.Action.GRAB
-
+		
 		if bump:
 		#	print('Just bumped')
 			self.moveHistory.pop() 
@@ -387,26 +385,6 @@ class MyAI ( Agent ):
 				self.gameNodes.pop((self.x, self.y+1))
 		#	print('End of bump if statement') 
 
-'''		if self.score < -125 and self.retrace == False and self.inProgress == False:
-		#	print('Score under -150! Starting to backtrack...')
-			if self.moveHistory[-1] == 'FORWARD' or self.moveHistory[-1] == 'SHOOT':
-				if self.moveHistory[-1] == 'SHOOT':
-					self.moveHistory.pop()
-				self.moveHistory.pop()
-				self.moves = ['TURN_LEFT', 'TURN_LEFT', 'FORWARD']
-			else: #if the last move before bump was a turn
-				if self.moveHistory[-1] == 'TURN_LEFT':
-					self.moveHistory.pop()
-					self.moveHistory.pop()
-					self.moves = ['TURN_RIGHT', 'TURN_LEFT', 'TURN_LEFT', 'FORWARD']
-				elif self.moveHistory[-1] == 'TURN_RIGHT':
-					self.moveHistory.pop()
-					self.moveHistory.pop()
-					self.moves = ['TURN_LEFT', 'TURN_LEFT', 'TURN_LEFT', 'FORWARD']
-			self.backtrack()
-			self.inProgress = True
-self.retrace = True
-''' 
 		if scream: 
 			#print('Just screamed')
 			self.wumpusDead = True 
@@ -446,7 +424,6 @@ self.retrace = True
 								self.gameStates[(nbr[0],nbr[1])].append('W') 
 				if not self.retrace:
 					self.moveHistory.pop() #remove shoot from moveHistory so it doesnt interfere with backtracking 
-		
 
 		if stench:
 			#print('Stench...')
@@ -457,7 +434,7 @@ self.retrace = True
 				self.updatePossibleThreat('W')
 			if not breeze: 
 				self.removeThreat('P')
-			if self.hasArrow and not self.wumpusDead and not self.inProgress and self.retrace == False: #TODO: Still may shoot out of bounds!  
+			if self.hasArrow and not self.wumpusDead and not self.inProgress and not self.retrace: #TODO: Still may shoot out of bounds!  
 				self.hasArrow = False
 				if self.direction == 'Right' and 'PW' in self.gameStates[(self.x+1, self.y)]: 
 					self.gameStates[(self.x+1, self.y)].remove('PW') 
@@ -507,8 +484,6 @@ self.retrace = True
 			self.changeDirection(move) 
 		#	print('Next Dir: ', self.direction) 
 		#	print('Next Coordinates: ', self.x, ',', self.y)
-		#	print()
-		#	print()
 			self.score -= 1 
 			return eval(agentMove) 
 			
