@@ -295,20 +295,28 @@ class MyAI ( Agent ):
 			return minNbr 
 
 	def startSearchHome(self): 
-		nextDir = None
 		nextCoord = self.findClosestHomeNbr() 
-		if self.x - nextCoord[0] == 1: 
-			nextDir = 'west' 
-		elif self.x - nextCoord[0] == -1: 
-			nextDir = 'east' 
-		elif self.y - nextCoord[1] == 1: 
-			nextDir = 'south'
-		elif self.y - nextCoord[1] == -1:
-			nextDir = 'north'
-		return self.generateChosenStack(nextDir) 	
+		while not (nextCoord[0] == 1 and nextCoord[1] == 1):
+			self.findClosestHomeNbr()
 
-
-
+	def executePath(self):
+		finalList = []
+		nextDir = None 
+		self.path.pop(0) 
+		while len(self.path) != 1: 
+			for nextCoord in self.path: 
+				if self.x - nextCoord[0] == 1: 
+					nextDir = 'west' 
+				elif self.x - nextCoord[0] == -1: 
+					nextDir = 'east' 
+				elif self.y - nextCoord[1] == 1: 
+					nextDir = 'south'
+				elif self.y - nextCoord[1] == -1:
+					nextDir = 'north'
+				self.path.pop(0)
+				print(nextCoord) 
+				finalList.extend(self.generateChosenStack(nextDir)) 
+		return finalList 
 	
 	def getAction( self, stench, breeze, glitter, bump, scream ):
 		# ======================================================================
@@ -329,15 +337,18 @@ class MyAI ( Agent ):
 				self.score -=1 
 				return Agent.Action.CLIMB 
 			#print('initializing homeSequence') 
-			self.homeSequence = self.startSearchHome()
+#			self.homeSequence = self.startSearchHome()
+			self.startSearchHome()
+			self.homeSequence = self.executePath() 
 			self.onWayHome = True 
 
 		if self.retrace and self.onWayHome: 
 			if self.x == 1 and self. y == 1: 
 				self.score -= 1
 				return Agent.Action.CLIMB
-			if len(self.homeSequence) == 1: 
-				self.onWayHome = False
+			print(self.x, self.y) 
+			#if len(self.homeSequence) == 1: 
+			#	self.onWayHome = False
 			nextMove = self.homeSequence.pop(0)
 			#print('next move home: ', nextMove)  
 			agentMove = 'Agent.Action' + '.' + nextMove 
