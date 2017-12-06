@@ -29,7 +29,7 @@ class MyAI ( Agent ):
 		# YOUR CODE BEGINS
 		# ======================================================================
 		self.x = 1 
-		self.y = 1 
+		self.y = 1 	
 		self.hasArrow = True 
 		self.rowLen = None
 		self.colLen = None
@@ -151,57 +151,58 @@ class MyAI ( Agent ):
 		elif self.y-move[1] == -1: 
 			return 'north'	
 
-	def generateChosenStack(self,move): 
-		if move == 'west': return self.generateWestMoveStack()
-		elif move == 'east': return self.generateEastMoveStack() 
-		elif move == 'south': return self.generateSouthMoveStack() 
-		elif move == 'north': return self.generateNorthMoveStack()
+	def generateChosenStack(self,move, givenDir): 
+		if move == 'west': return self.generateWestMoveStack(givenDir)
+		elif move == 'east': return self.generateEastMoveStack(givenDir) 
+		elif move == 'south': return self.generateSouthMoveStack(givenDir) 
+		elif move == 'north': return self.generateNorthMoveStack(givenDir)
 		elif move == 'climb': return ['CLIMB']
+		elif move == None: return []
 				
-	def generateEastMoveStack(self): 
+	def generateEastMoveStack(self, givenDir): 
 		movesStack = []  
-		if self.direction == 'Down': 
+		if givenDir == 'Down': 
 			movesStack.append('TURN_LEFT') 
-		elif self.direction == 'Left':
+		elif givenDir == 'Left':
 			movesStack.append('TURN_RIGHT')
 			movesStack.append('TURN_RIGHT')
-		elif self.direction == 'Up': 
+		elif givenDir == 'Up': 
 			movesStack.append('TURN_RIGHT')
 		movesStack.append('FORWARD'); 
 		return movesStack	
 	
-	def generateWestMoveStack(self):
+	def generateWestMoveStack(self, givenDir):
 		movesStack = [] 
-		if self.direction == 'Down':
+		if givenDir == 'Down':
 			movesStack.append('TURN_RIGHT')
-		elif self.direction == 'Right':
+		elif givenDir == 'Right':
 			movesStack.append('TURN_RIGHT')
 			movesStack.append('TURN_RIGHT')
-		elif self.direction == 'Up':
+		elif givenDir == 'Up':
 			movesStack.append('TURN_LEFT')
 		movesStack.append('FORWARD');
 		return movesStack 
 
-	def generateNorthMoveStack(self): 
+	def generateNorthMoveStack(self, givenDir): 
 		movesStack = [] 
-		if self.direction == 'Right':
+		if givenDir == 'Right':
 			movesStack.append('TURN_LEFT')
-		elif self.direction == 'Down':
+		elif givenDir == 'Down':
 			movesStack.append('TURN_RIGHT')
 			movesStack.append('TURN_RIGHT')
-		elif self.direction == 'Left':
+		elif givenDir == 'Left':
 			movesStack.append('TURN_RIGHT')
 		movesStack.append('FORWARD');
 		return movesStack 
 
-	def generateSouthMoveStack(self): 
+	def generateSouthMoveStack(self, givenDir): 
 		movesStack = [] 
-		if self.direction == 'Left':
+		if givenDir == 'Left':
 			movesStack.append('TURN_LEFT')
-		elif self.direction == 'Up':
+		elif givenDir == 'Up':
  			movesStack.append('TURN_RIGHT')
  			movesStack.append('TURN_RIGHT')
-		elif self.direction == 'Right':
+		elif givenDir == 'Right':
 			movesStack.append('TURN_RIGHT')
 		movesStack.append('FORWARD');
 		return movesStack
@@ -269,6 +270,32 @@ class MyAI ( Agent ):
 				self.direction = 'Left'
 			elif move == 'TURN_RIGHT':
 				self.direction = 'Right'
+
+	def changeTempDir(self, curDir, move): 
+		if move == None: 
+			return curDir 
+		elif curDir == 'Right':
+			if move == 'TURN_LEFT':
+				return 'Up'
+			elif move == 'TURN_RIGHT':
+				return 'Down'
+		elif curDir == 'Left':
+			if move == 'TURN_LEFT':
+				return 'Down'
+			elif move == 'TURN_RIGHT':
+				return 'Up'
+		elif curDir == 'Down':
+			if move == 'TURN_LEFT':
+				return 'Right'
+			elif move == 'TURN_RIGHT':
+				return  'Left'
+		elif curDir == 'Up':
+			if move == 'TURN_LEFT':
+				return 'Left'
+			elif move == 'TURN_RIGHT':
+				return 'Right'
+
+
 	def getSafeNodes(self):
 		for nbr in self.gameNodes:
 			if 'S' in self.gameStates[nbr]: 
@@ -279,10 +306,10 @@ class MyAI ( Agent ):
 	def calcDist(self, otherX, otherY): 
 		return sqrt((otherX-1)**2 + (otherY-1)**2) 
 		 
-	def findClosestHomeNbr(self): 
+	def findClosestHomeNbr(self, tempX, tempY): 
 		nbrDist = {}
-		currNbrs = self.safeNodes[(self.x,self.y)]
-		self.visitedNodes.append((self.x,self.y))
+		currNbrs = self.safeNodes[(tempX,tempY)]
+		self.visitedNodes.append((tempX,tempY))
 		for nbr in currNbrs: 
 			if nbr not in self.visitedNodes: 
 				nbrDist[nbr] = self.calcDist(nbr[0],nbr[1])
@@ -291,31 +318,54 @@ class MyAI ( Agent ):
 			return firstPop
 		else:
 			minNbr = min(nbrDist, key = nbrDist.get)
-			self.path.append((self.x,self.y)) 
+			self.path.append((tempX,tempY)) 
 			return minNbr 
 
 	def startSearchHome(self): 
-		nextCoord = self.findClosestHomeNbr() 
-		while not (nextCoord[0] == 1 and nextCoord[1] == 1):
-			self.findClosestHomeNbr()
+		nextCoord = self.findClosestHomeNbr(self.x,self.y)
+		print('next Coord', nextCoord) 
+		while (nextCoord != (1,1)):  
+			x = self.findClosestHomeNbr(nextCoord[0], nextCoord[1])
+			nextCoord = x
 
 	def executePath(self):
 		finalList = []
 		nextDir = None 
-		self.path.pop(0) 
-		while len(self.path) != 1: 
-			for nextCoord in self.path: 
-				if self.x - nextCoord[0] == 1: 
+		print('first pop', self.path.pop(0))
+		self.path.append((1,1)) 
+		print('path ',self.path)
+		c = ((self.x,self.y))
+		cDir = self.direction 
+		print('cXY: ', c) 
+		print('cDir', cDir)
+		#while len(self.path) != 0:
+		while c!= (1,1) :
+			for nextCoord in self.path:
+				print('c is: ',c)
+				print('nextCoord is: ', nextCoord) 
+				if c[0] - nextCoord[0] == 1: 
 					nextDir = 'west' 
-				elif self.x - nextCoord[0] == -1: 
+				elif c[0] - nextCoord[0] == -1: 
 					nextDir = 'east' 
-				elif self.y - nextCoord[1] == 1: 
+				elif c[1] - nextCoord[1] == 1: 
 					nextDir = 'south'
-				elif self.y - nextCoord[1] == -1:
+				elif c[1] - nextCoord[1] == -1:
 					nextDir = 'north'
-				self.path.pop(0)
-				print(nextCoord) 
-				finalList.extend(self.generateChosenStack(nextDir)) 
+				elif nextCoord == (1,1):
+					nextDir = 'climb'
+				print('nextDir is: ', nextDir)
+				c = nextCoord   
+				tempStack = self.generateChosenStack(nextDir, cDir) 
+				print('tempStack: ', tempStack)
+				for move in tempStack: 	
+					print(cDir, nextDir)
+					x = self.changeTempDir(cDir, move)
+					
+					if x != None:cDir = x 
+					print('inside tempStack: ', cDir) 
+				
+				finalList.extend(tempStack)
+		print(finalList) 
 		return finalList 
 	
 	def getAction( self, stench, breeze, glitter, bump, scream ):
@@ -340,6 +390,7 @@ class MyAI ( Agent ):
 #			self.homeSequence = self.startSearchHome()
 			self.startSearchHome()
 			self.homeSequence = self.executePath() 
+			print('HOMSEQ: ', self.homeSequence)
 			self.onWayHome = True 
 
 		if self.retrace and self.onWayHome: 
@@ -347,9 +398,12 @@ class MyAI ( Agent ):
 				self.score -= 1
 				return Agent.Action.CLIMB
 			print(self.x, self.y) 
+			
 			#if len(self.homeSequence) == 1: 
 			#	self.onWayHome = False
+			
 			nextMove = self.homeSequence.pop(0)
+			print('in getAction: ', nextMove) 
 			#print('next move home: ', nextMove)  
 			agentMove = 'Agent.Action' + '.' + nextMove 
 			if nextMove == 'FORWARD': 
@@ -471,7 +525,7 @@ class MyAI ( Agent ):
 			if bestMove == 'climb': 
 				self.score -= 1
 				return Agent.Action.CLIMB
-			self.moves = self.generateChosenStack(bestMove)
+			self.moves = self.generateChosenStack(bestMove, self.direction)
 			self.inProgress = True 
 			#print('Exiting not self.inProgress block')
 
