@@ -271,6 +271,45 @@ class MyAI ( Agent ):
 			elif move == 'TURN_RIGHT':
 				self.direction = 'Right'
 
+	def getShootDirection(self):
+		dirList = ['north','east','south','west']
+		if self.direction == 'Right':
+			dirList.remove('west')
+		elif self.direction == 'Left':
+			dirList.remove('east')
+		elif self.direction == 'Up':
+			dirList.remove('south')
+		elif self.direction == 'Down':
+			dirList.remove('north')
+		print('Just removed from dirList once: ',dirList)
+		nbrs = self.gameNodes[(self.x,self.y)]
+		for nbr in nbrs:
+			if 'S' in self.gameStates[nbr] or 'NW' in self.gameStates[nbr]: #Added or 'NW' in state 
+				if self.x - nbr[0] == 1:
+					if 'west' in dirList:
+						dirList.remove('west')
+				elif self.x - nbr[0] == -1:
+					if 'east' in dirList:
+						dirList.remove('east')
+				elif self.y - nbr[1] == -1:
+					if 'north' in dirList:
+						dirList.remove('north')
+				elif self.y - nbr[1] == 1:
+					if 'south' in dirList:
+						dirList.remove('south')
+		if self.x == 1 and 'west' in dirList:
+			dirList.remove('west')
+		if self.x == self.rowLen and 'east' in dirList:
+			dirList.remove('east')
+		if self.y == self.colLen and 'north' in dirList:
+			dirList.remove('north')
+		if self.y == 1 and 'south' in dirList:
+			dirList.remove('south')
+		print('dirList for shooting: ',dirList)
+		shootDir = choice(dirList)
+		print('Direction agent will shoot: ',shootDir)
+		return shootDir
+
 	def changeTempDir(self, curDir, move): 
 		if move == None: 
 			return curDir 
@@ -463,26 +502,30 @@ class MyAI ( Agent ):
 				nbrList = self.gameNodes[(self.x,self.y)]  
 				nbrIsWumpus = (len(self.gameNodes[(self.x,self.y)]) == 2) #if only 2 neighbors we know other nbr is for sure a wumpus bc we heard no scream 
 				if self.direction == 'Right':
-					if 'NW' not in self.gameStates[(self.x+1, self.y)]: self.gameStates[(self.x+1, self.y)].append('NW') 
+					if 'NW' not in self.gameStates[(self.x+1, self.y)]: self.gameStates[(self.x+1, self.y)].append('NW')
+					if 'PW' in self.gameStates[(self.x+1, self.y)]: self.gameStates[(self.x+1, self.y)].remove('PW') 
 					if nbrIsWumpus: 
 						for nbr in nbrList: 	
 							if nbr != (self.x+1, self.y): 
 								self.gameStates[(nbr[0],nbr[1])].append('W') 
 					
 				elif self.direction == 'Left': 
-					if 'NW' not in self.gameStates[(self.x-1, self.y)]: self.gameStates[(self.x-1, self.y)].append('NW') 
+					if 'NW' not in self.gameStates[(self.x-1, self.y)]: self.gameStates[(self.x-1, self.y)].append('NW')
+					if 'PW' in self.gameStates[(self.x-1, self.y)]: self.gameStates[(self.x-1, self.y)].remove('PW') 
 					if nbrIsWumpus: 
 						for nbr in nbrList: 
 							if nbr != (self.x-1,self.y):
 								self.gameStates[(nbr[0],nbr[1])].append('W') 
 				elif self.direction == 'Up': 
 					if 'NW' not in self.gameStates[(self.x, self.y+1)]: self.gameStates[(self.x, self.y+1)].append('NW')
+					if 'PW' in self.gameStates[(self.x, self.y+1)]: self.gameStates[(self.x, self.y+1)].remove('PW')
 					if nbrIsWumpus: 	
 						for nbr in nbrList: 
 							if nbr != (self.x, self.y+1): 	
 								self.gameStates[(nbr[0],nbr[1])].append('W') 
 				elif self.direction == 'Down': 
 					if 'NW' not in self.gameStates[(self.x, self.y-1)]: self.gameStates[(self.x, self.y-1)].append('NW')
+					if 'PW' in self.gameStates[(self.x, self.y-1)]: self.gameStates[(self.x, self.y-1)].remove('PW')
 					if nbrIsWumpus: 
 						for nbr in nbrList:
 							if nbr != (self.x, self.y-1): 
@@ -500,7 +543,7 @@ class MyAI ( Agent ):
 			if not breeze: 
 				self.removeThreat('P')
 			if self.hasArrow and not self.wumpusDead and not self.inProgress and not self.retrace: #TODO: Still may shoot out of bounds!  
-				self.hasArrow = False
+				'''self.hasArrow = False
 				if self.direction == 'Right' and 'PW' in self.gameStates[(self.x+1, self.y)]: 
 					self.gameStates[(self.x+1, self.y)].remove('PW') 
 				elif self.direction == 'Left' and 'PW' in self.gameStates[(self.x-1, self.y)]: 
@@ -511,7 +554,15 @@ class MyAI ( Agent ):
 					self.gameStates[(self.x, self.y-1)].remove('PW')
 				self.moveHistory.append('SHOOT') 
 				self.score -= 10
-				return Agent.Action.SHOOT
+				return Agent.Action.SHOOT'''
+				if not self.inProgress:
+					print('Getting shoot direction...')
+					shootDirection = self.getShootDirection()
+					self.moves = self.generateChosenStack(shootDirection,self.direction)
+					self.moves.pop() #remove the FORWARD action from self.moves
+					self.moves.append('SHOOT')
+					print('self.moves for shooting: ',self.moves)
+					self.inProgress = True	
 		#	print('In stench; no arrow...continuing')
 
 		if breeze: 
@@ -545,11 +596,16 @@ class MyAI ( Agent ):
 		#		print(nbr[0],',',nbr[1],': ',self.gameStates[(nbr[0], nbr[1])])
 			if move == 'FORWARD': 
 				self.updateCoordinates() 
+				self.score -= 1
+			elif move == 'SHOOT':
+				self.hasArrow = False
+				self.score -= 10
+			else:
+				self.score -= 1
 		#	print('Current Dir: ', self.direction)
 			self.changeDirection(move) 
 		#	print('Next Dir: ', self.direction) 
 		#	print('Next Coordinates: ', self.x, ',', self.y)
-			self.score -= 1 
 			return eval(agentMove) 
 			
 		return Agent.Action.CLIMB
