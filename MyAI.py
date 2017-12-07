@@ -45,6 +45,7 @@ class MyAI ( Agent ):
 		self.retrace = False 	
 		self.numVisitedNodes = len(self.gameNodes) 
 		self.score = 0
+		self.otherShootingDir = None
 		self.safeNodes = defaultdict(list) 
 		self.visitedNodes = []
 		self.path = []
@@ -53,6 +54,234 @@ class MyAI ( Agent ):
         # ======================================================================
         # YOUR CODE ENDS
         # ======================================================================
+	
+	def getAction( self, stench, breeze, glitter, bump, scream ):
+		# ======================================================================
+		# YOUR CODE BEGINS
+		# ======================================================================
+		#print('Score: ',self.score)
+		self.updateGameNodes() 
+		self.markVisitedAsSafe() 
+		if self.score < -125 and self.retrace == False and self.inProgress == False:
+			#print('score less than <-125, turning on self.retrace')
+			self.visitedNodes.append((self.x,self.y))
+			self.path.append((self.x,self.y)) 
+			self.getSafeNodes()
+			self.retrace = True
+
+		if self.retrace and not self.onWayHome:
+			if self.x == 1 and self.y == 1: 
+				self.score -=1 
+				return Agent.Action.CLIMB 
+			#print('initializing homeSequence') 
+#			self.homeSequence = self.startSearchHome()
+			self.startSearchHome()
+			self.homeSequence = self.executePath() 
+			#print('HOMSEQ: ', self.homeSequence)
+			self.onWayHome = True 
+
+		if self.retrace and self.onWayHome: 
+			if self.x == 1 and self. y == 1: 
+				self.score -= 1
+				return Agent.Action.CLIMB
+			#print(self.x, self.y) 
+			
+			#if len(self.homeSequence) == 1: 
+			#	self.onWayHome = False
+			
+			nextMove = self.homeSequence.pop(0)
+			#print('in getAction: ', nextMove) 
+			#print('next move home: ', nextMove)  
+			agentMove = 'Agent.Action' + '.' + nextMove 
+			if nextMove == 'FORWARD': 
+				self.updateCoordinates()
+			self.changeDirection(nextMove)
+			self.score -= 1
+			return eval(agentMove) 
+		
+		if not stench and not breeze:
+			#print('Calling self.markSafe()')
+			self.markSafe()
+		
+		if glitter and self.retrace == False: 
+			#print('Picking up glitter')
+			self.hasGold = True
+			self.inProgress = False 
+			#self.inProgress = True 
+			self.moveHistory.pop() 	
+			#self.moves = ['TURN_LEFT', 'TURN_LEFT', 'FORWARD']
+			#self.backtrack() 	 
+			self.score -= 1
+			self.retrace = True 
+			self.visitedNodes.append((self.x,self.y))
+			self.path.append((self.x,self.y))
+			self.getSafeNodes()
+			return Agent.Action.GRAB
+		
+		if bump:
+		#	print('Just bumped')
+			self.moveHistory.pop() 
+			if self.direction == 'Right': 
+				self.x -= 1
+				self.rowLen = self.x
+				for node in self.gameNodes: 
+					if node[0] == self.x: 
+						self.gameNodes[node].remove((node[0]+1,node[1]))
+				self.gameNodes.pop((self.x+1, self.y))
+			elif self.direction == 'Up': 
+				self.y -= 1
+				self.colLen = self.y 
+				for node in self.gameNodes:  
+					if node[1] == self.y: 
+						self.gameNodes[node].remove((node[0], node[1]+1)) #error list.remove(x) is not in the list 
+				self.gameNodes.pop((self.x, self.y+1))
+		#	print('End of bump if statement') 
+
+		if scream: 
+			#print('Just screamed')
+			self.wumpusDead = True 
+			self.removePW() #removes all PW in game board and replaces them with NW
+			if not self.retrace: 
+				self.moveHistory.pop()
+		
+		if len(self.moveHistory) > 0: 
+			if self.moveHistory[-1] == 'SHOOT' and not self.wumpusDead: #we shot arrow and heard no scream   ##TEST EVERY SCENARIO BY CREATING THE WORLDS 	
+		#		print('Just shot and wumpus not dead')
+				nbrList = self.gameNodes[(self.x,self.y)]  
+				numOfNbrs = len(self.gameNodes[(self.x,self.y)]) #if only 2 neighbors we know other nbr is for sure a wumpus bc we heard no scream 
+				xCoord = self.x
+				yCoord = self.y
+				if self.otherShootingDir != None:
+					if self.otherShootingDir == 'north':
+						yCoord += 1
+					elif self.otherShootingDir == 'east':
+						xCoord += 1
+					elif self.otherShootingDir == 'south':
+						yCoord -= 1
+					elif self.otherShootingDir == 'west':
+						xCoord -= 1
+				if self.direction == 'Right':
+					if 'NW' not in self.gameStates[(self.x+1, self.y)]: self.gameStates[(self.x+1, self.y)].append('NW')
+					if 'PW' in self.gameStates[(self.x+1, self.y)]: self.gameStates[(self.x+1, self.y)].remove('PW') 
+					if numOfNbrs == 2: 
+						for nbr in nbrList: 	
+							if nbr != (self.x+1, self.y): 
+								self.gameStates[(nbr[0],nbr[1])].append('W')
+								self.removePW()
+					elif self.otherShootingDir != None:
+						if 'PW' in self.gameStates[(xCoord,yCoord)]: self.gameStates[(xCoord,yCoord)].remove('PW')
+						self.gameStates[(xCoord,yCoord)].append('W')
+						self.removePW()
+				elif self.direction == 'Left': 
+					if 'NW' not in self.gameStates[(self.x-1, self.y)]: self.gameStates[(self.x-1, self.y)].append('NW')
+					if 'PW' in self.gameStates[(self.x-1, self.y)]: self.gameStates[(self.x-1, self.y)].remove('PW') 
+					if numOfNbrs == 2: 
+						for nbr in nbrList: 
+							if nbr != (self.x-1,self.y):
+								self.gameStates[(nbr[0],nbr[1])].append('W')
+								self.removePW()
+					elif self.otherShootingDir != None:
+						if 'PW' in self.gameStates[(xCoord,yCoord)]: self.gameStates[(xCoord,yCoord)].remove('PW')
+						self.gameStates[(xCoord,yCoord)].append('W')
+						self.removePW()	
+				elif self.direction == 'Up': 
+					if 'NW' not in self.gameStates[(self.x, self.y+1)]: self.gameStates[(self.x, self.y+1)].append('NW')
+					if 'PW' in self.gameStates[(self.x, self.y+1)]: self.gameStates[(self.x, self.y+1)].remove('PW')
+					if numOfNbrs == 2: 	
+						for nbr in nbrList: 
+							if nbr != (self.x, self.y+1): 	
+								self.gameStates[(nbr[0],nbr[1])].append('W')
+								self.removePW()
+					elif self.otherShootingDir != None:
+						if 'PW' in self.gameStates[(xCoord,yCoord)]: self.gameStates[(xCoord,yCoord)].remove('PW')
+						self.gameStates[(xCoord,yCoord)].append('W')
+						self.removePW() 
+				elif self.direction == 'Down': 
+					if 'NW' not in self.gameStates[(self.x, self.y-1)]: self.gameStates[(self.x, self.y-1)].append('NW')
+					if 'PW' in self.gameStates[(self.x, self.y-1)]: self.gameStates[(self.x, self.y-1)].remove('PW')
+					if numOfNbrs == 2: 
+						for nbr in nbrList:
+							if nbr != (self.x, self.y-1): 
+								self.gameStates[(nbr[0],nbr[1])].append('W')
+								self.removePW()
+					elif self.otherShootingDir != None:
+						if 'PW' in self.gameStates[(xCoord,yCoord)]: self.gameStates[(xCoord,yCoord)].remove('PW')
+						self.gameStates[(xCoord,yCoord)].append('W')
+						self.removePW() 
+				if not self.retrace:
+					self.moveHistory.pop() #remove shoot from moveHistory so it doesnt interfere with backtracking 
+
+		if stench:
+			#print('Stench...')
+			if breeze and self.x == 1 and self.y == 1: 
+				self.score -= 1
+				return Agent.Action.CLIMB		
+			if not self.wumpusDead: 
+				self.updatePossibleThreat('W')
+			if not breeze: 
+				self.removeThreat('P')
+			if self.hasArrow and not self.wumpusDead and not self.inProgress and not self.retrace:  
+				if not self.inProgress:
+		#			print('Getting shoot direction...')
+					shootDirection = self.getShootDirection()
+					self.moves = self.generateChosenStack(shootDirection,self.direction)
+					self.moves.pop() #remove the FORWARD action from self.moves
+					self.moves.append('SHOOT')
+		#			print('self.moves for shooting: ',self.moves)
+					self.inProgress = True	
+		#	print('In stench; no arrow...continuing')
+
+		if breeze: 
+			self.updatePossibleThreat('P') 
+			if not stench: 
+				self.removeThreat('W') 
+		
+		if not self.inProgress: 
+		#	print('In not self.inProgress')
+			bestMove = self.findBestMove() 
+			if bestMove == 'climb': 
+				self.score -= 1
+				return Agent.Action.CLIMB
+			self.moves = self.generateChosenStack(bestMove, self.direction)
+			self.inProgress = True 
+			#print('Exiting not self.inProgress block')
+
+		if self.inProgress: 
+		#	print('In self.inProgress')
+			if (self.hasGold or self.retrace) and self.x == 1 and self.y == 1: 
+				self.score -= 1
+				return Agent.Action.CLIMB
+		#	print('self.moves: ', self.moves) 
+			if len(self.moves) == 1: self.inProgress = False 
+			move = self.moves.pop(0)
+			self.moveHistory.append(move) 
+			agentMove = 'Agent.Action' + '.' + move  
+		#	print('STATES: ') 
+		#	for nbr in self.gameNodes[(self.x,self.y)]:
+			
+		#		print(nbr[0],',',nbr[1],': ',self.gameStates[(nbr[0], nbr[1])])
+			if move == 'FORWARD': 
+				self.updateCoordinates() 
+				self.score -= 1
+			elif move == 'SHOOT':
+				self.hasArrow = False
+				self.score -= 10
+			else:
+				self.score -= 1
+		#	print('Current Dir: ', self.direction)
+			self.changeDirection(move) 
+		#	print('Next Dir: ', self.direction) 
+		#	print('Next Coordinates: ', self.x, ',', self.y)
+			return eval(agentMove) 
+			
+		return Agent.Action.CLIMB
+		# ======================================================================
+		# YOUR CODE ENDS
+		# ======================================================================
+    
+	# ======================================================================
+	# YOUR CODE BEGINS
+	# ======================================================================
 	def generateNeighbors(self, x:int, y:int): 
 		neighbors = [] 
 		if x >= 2:
@@ -78,9 +307,16 @@ class MyAI ( Agent ):
 			
 	def updatePossibleThreat(self, threat:str):
 		'''Adds Possibles to neighboring nodes IFF they haven't been visited, it has not been labeled no threat, and it has not been labeled/marked already (avoid duplicates)'''
-		for node in self.gameNodes[(self.x, self.y)]:
-			if node not in self.gameNodes and ('N' + threat) not in self.gameStates[node] and ('P' + threat) not in self.gameStates[node] and 'S' not in self.gameStates[node]:  #check that the node isnt visited because that means it is safe  
-				self.gameStates[node].append('P'+threat)
+		noNewThreats = False
+		if threat == 'W':
+			for nbr in self.gameNodes[(self.x,self.y)]:
+				if nbr not in self.gameNodes and nbr in self.gameStates and 'PW' in self.gameStates[nbr]:
+					noNewThreats = True
+		for nbr in self.gameNodes[(self.x, self.y)]:
+			if noNewThreats and nbr not in self.gameNodes and ('N' + threat) not in self.gameStates[nbr] and 'S' not in self.gameStates[nbr] and ('P' + threat) not in self.gameStates[nbr]:
+				self.gameStates[nbr].append('N' + threat)
+			elif noNewThreats == False and nbr not in self.gameNodes and ('N' + threat) not in self.gameStates[nbr] and ('P' + threat) not in self.gameStates[nbr] and 'S' not in self.gameStates[nbr]:
+				self.gameStates[nbr].append('P' + threat)
 
 	def noSameThreat(self, threat: str): 
 		'''Checks if neighbors' states have same possible threat, and marks no threat if it doesnt'''
@@ -281,7 +517,7 @@ class MyAI ( Agent ):
 			dirList.remove('south')
 		elif self.direction == 'Down':
 			dirList.remove('north')
-		print('Just removed from dirList once: ',dirList)
+		#print('Just removed from dirList once: ',dirList)
 		nbrs = self.gameNodes[(self.x,self.y)]
 		for nbr in nbrs:
 			if 'S' in self.gameStates[nbr] or 'NW' in self.gameStates[nbr]: #Added or 'NW' in state 
@@ -305,9 +541,12 @@ class MyAI ( Agent ):
 			dirList.remove('north')
 		if self.y == 1 and 'south' in dirList:
 			dirList.remove('south')
-		print('dirList for shooting: ',dirList)
+		#print('dirList for shooting: ',dirList)
 		shootDir = choice(dirList)
-		print('Direction agent will shoot: ',shootDir)
+		if len(dirList) == 2:
+			for dirOption in dirList:
+				if dirOption != shootDir: self.otherShootingDir = dirOption
+		#print('Direction agent will shoot: ',shootDir)
 		return shootDir
 
 	def changeTempDir(self, curDir, move): 
@@ -362,7 +601,7 @@ class MyAI ( Agent ):
 
 	def startSearchHome(self): 
 		nextCoord = self.findClosestHomeNbr(self.x,self.y)
-		print('next Coord', nextCoord) 
+		#print('next Coord', nextCoord) 
 		while (nextCoord != (1,1)):  
 			x = self.findClosestHomeNbr(nextCoord[0], nextCoord[1])
 			nextCoord = x
@@ -370,18 +609,18 @@ class MyAI ( Agent ):
 	def executePath(self):
 		finalList = []
 		nextDir = None 
-		print('first pop', self.path.pop(0))
+		#print('first pop', self.path.pop(0))
 		self.path.append((1,1)) 
-		print('path ',self.path)
+		#print('path ',self.path)
 		c = ((self.x,self.y))
 		cDir = self.direction 
-		print('cXY: ', c) 
-		print('cDir', cDir)
+		#print('cXY: ', c) 
+		#print('cDir', cDir)
 		#while len(self.path) != 0:
 		while c!= (1,1) :
 			for nextCoord in self.path:
-				print('c is: ',c)
-				print('nextCoord is: ', nextCoord) 
+				#print('c is: ',c)
+				#print('nextCoord is: ', nextCoord) 
 				if c[0] - nextCoord[0] == 1: 
 					nextDir = 'west' 
 				elif c[0] - nextCoord[0] == -1: 
@@ -392,231 +631,20 @@ class MyAI ( Agent ):
 					nextDir = 'north'
 				elif nextCoord == (1,1):
 					nextDir = 'climb'
-				print('nextDir is: ', nextDir)
+				#print('nextDir is: ', nextDir)
 				c = nextCoord   
 				tempStack = self.generateChosenStack(nextDir, cDir) 
-				print('tempStack: ', tempStack)
+				#print('tempStack: ', tempStack)
 				for move in tempStack: 	
-					print(cDir, nextDir)
+					#print(cDir, nextDir)
 					x = self.changeTempDir(cDir, move)
 					
 					if x != None:cDir = x 
-					print('inside tempStack: ', cDir) 
+					#print('inside tempStack: ', cDir) 
 				
 				finalList.extend(tempStack)
-		print(finalList) 
+		#print(finalList) 
 		return finalList 
-	
-	def getAction( self, stench, breeze, glitter, bump, scream ):
-		# ======================================================================
-		# YOUR CODE BEGINS
-		# ======================================================================
-		#print('Score: ',self.score)
-		self.updateGameNodes() 
-		self.markVisitedAsSafe() 
-		if self.score < -125 and self.retrace == False and self.inProgress == False:
-			#print('score less than <-125, turning on self.retrace')
-			self.visitedNodes.append((self.x,self.y))
-			self.path.append((self.x,self.y)) 
-			self.getSafeNodes()
-			self.retrace = True
-
-		if self.retrace and not self.onWayHome:
-			if self.x == 1 and self.y == 1: 
-				self.score -=1 
-				return Agent.Action.CLIMB 
-			#print('initializing homeSequence') 
-#			self.homeSequence = self.startSearchHome()
-			self.startSearchHome()
-			self.homeSequence = self.executePath() 
-			print('HOMSEQ: ', self.homeSequence)
-			self.onWayHome = True 
-
-		if self.retrace and self.onWayHome: 
-			if self.x == 1 and self. y == 1: 
-				self.score -= 1
-				return Agent.Action.CLIMB
-			print(self.x, self.y) 
-			
-			#if len(self.homeSequence) == 1: 
-			#	self.onWayHome = False
-			
-			nextMove = self.homeSequence.pop(0)
-			print('in getAction: ', nextMove) 
-			#print('next move home: ', nextMove)  
-			agentMove = 'Agent.Action' + '.' + nextMove 
-			if nextMove == 'FORWARD': 
-				self.updateCoordinates()
-			self.changeDirection(nextMove)
-			self.score -= 1
-			return eval(agentMove) 
-		
-		if not stench and not breeze:
-			#print('Calling self.markSafe()')
-			self.markSafe()
-		
-		if glitter and self.retrace == False: 
-			#print('Picking up glitter')
-			self.hasGold = True
-			self.inProgress = False 
-			#self.inProgress = True 
-			self.moveHistory.pop() 	
-			#self.moves = ['TURN_LEFT', 'TURN_LEFT', 'FORWARD']
-			#self.backtrack() 	 
-			self.score -= 1
-			self.retrace = True 
-			self.visitedNodes.append((self.x,self.y))
-			self.path.append((self.x,self.y))
-			self.getSafeNodes()
-			return Agent.Action.GRAB
-		
-		if bump:
-		#	print('Just bumped')
-			self.moveHistory.pop() 
-			if self.direction == 'Right': 
-				self.x -= 1
-				self.rowLen = self.x
-				for node in self.gameNodes: 
-					if node[0] == self.x: 
-						self.gameNodes[node].remove((node[0]+1,node[1]))
-				self.gameNodes.pop((self.x+1, self.y))
-			elif self.direction == 'Up': 
-				self.y -= 1
-				self.colLen = self.y 
-				for node in self.gameNodes:  
-					if node[1] == self.y: 
-						self.gameNodes[node].remove((node[0], node[1]+1)) #error list.remove(x) is not in the list 
-				self.gameNodes.pop((self.x, self.y+1))
-		#	print('End of bump if statement') 
-
-		if scream: 
-			#print('Just screamed')
-			self.wumpusDead = True 
-			self.removePW() #removes all PW in game board and replaces them with NW
-			if not self.retrace: 
-				self.moveHistory.pop()
-		
-		if len(self.moveHistory) > 0: 
-			if self.moveHistory[-1] == 'SHOOT' and not self.wumpusDead: #we shot arrow and heard no scream   ##TEST EVERY SCENARIO BY CREATING THE WORLDS 	
-		#		print('Just shot and wumpus not dead')
-				nbrList = self.gameNodes[(self.x,self.y)]  
-				nbrIsWumpus = (len(self.gameNodes[(self.x,self.y)]) == 2) #if only 2 neighbors we know other nbr is for sure a wumpus bc we heard no scream 
-				if self.direction == 'Right':
-					if 'NW' not in self.gameStates[(self.x+1, self.y)]: self.gameStates[(self.x+1, self.y)].append('NW')
-					if 'PW' in self.gameStates[(self.x+1, self.y)]: self.gameStates[(self.x+1, self.y)].remove('PW') 
-					if nbrIsWumpus: 
-						for nbr in nbrList: 	
-							if nbr != (self.x+1, self.y): 
-								self.gameStates[(nbr[0],nbr[1])].append('W') 
-					
-				elif self.direction == 'Left': 
-					if 'NW' not in self.gameStates[(self.x-1, self.y)]: self.gameStates[(self.x-1, self.y)].append('NW')
-					if 'PW' in self.gameStates[(self.x-1, self.y)]: self.gameStates[(self.x-1, self.y)].remove('PW') 
-					if nbrIsWumpus: 
-						for nbr in nbrList: 
-							if nbr != (self.x-1,self.y):
-								self.gameStates[(nbr[0],nbr[1])].append('W') 
-				elif self.direction == 'Up': 
-					if 'NW' not in self.gameStates[(self.x, self.y+1)]: self.gameStates[(self.x, self.y+1)].append('NW')
-					if 'PW' in self.gameStates[(self.x, self.y+1)]: self.gameStates[(self.x, self.y+1)].remove('PW')
-					if nbrIsWumpus: 	
-						for nbr in nbrList: 
-							if nbr != (self.x, self.y+1): 	
-								self.gameStates[(nbr[0],nbr[1])].append('W') 
-				elif self.direction == 'Down': 
-					if 'NW' not in self.gameStates[(self.x, self.y-1)]: self.gameStates[(self.x, self.y-1)].append('NW')
-					if 'PW' in self.gameStates[(self.x, self.y-1)]: self.gameStates[(self.x, self.y-1)].remove('PW')
-					if nbrIsWumpus: 
-						for nbr in nbrList:
-							if nbr != (self.x, self.y-1): 
-								self.gameStates[(nbr[0],nbr[1])].append('W') 
-				if not self.retrace:
-					self.moveHistory.pop() #remove shoot from moveHistory so it doesnt interfere with backtracking 
-
-		if stench:
-			#print('Stench...')
-			if breeze and self.x == 1 and self.y == 1: 
-				self.score -= 1
-				return Agent.Action.CLIMB		
-			if not self.wumpusDead: 
-				self.updatePossibleThreat('W')
-			if not breeze: 
-				self.removeThreat('P')
-			if self.hasArrow and not self.wumpusDead and not self.inProgress and not self.retrace: #TODO: Still may shoot out of bounds!  
-				'''self.hasArrow = False
-				if self.direction == 'Right' and 'PW' in self.gameStates[(self.x+1, self.y)]: 
-					self.gameStates[(self.x+1, self.y)].remove('PW') 
-				elif self.direction == 'Left' and 'PW' in self.gameStates[(self.x-1, self.y)]: 
-					self.gameStates[(self.x-1, self.y)].remove('PW') 
-				elif self.direction == 'Up' and 'PW' in self.gameStates[(self.x, self.y+1)]: 
-					self.gameStates[(self.x, self.y+1)].remove('PW') 
-				elif self.direction == 'Down' and 'PW' in self.gameStates[(self.x, self.y-1)]: 
-					self.gameStates[(self.x, self.y-1)].remove('PW')
-				self.moveHistory.append('SHOOT') 
-				self.score -= 10
-				return Agent.Action.SHOOT'''
-				if not self.inProgress:
-					print('Getting shoot direction...')
-					shootDirection = self.getShootDirection()
-					self.moves = self.generateChosenStack(shootDirection,self.direction)
-					self.moves.pop() #remove the FORWARD action from self.moves
-					self.moves.append('SHOOT')
-					print('self.moves for shooting: ',self.moves)
-					self.inProgress = True	
-		#	print('In stench; no arrow...continuing')
-
-		if breeze: 
-			self.updatePossibleThreat('P') 
-			if not stench: 
-				self.removeThreat('W') 
-		
-		if not self.inProgress: 
-		#	print('In not self.inProgress')
-			bestMove = self.findBestMove() 
-			if bestMove == 'climb': 
-				self.score -= 1
-				return Agent.Action.CLIMB
-			self.moves = self.generateChosenStack(bestMove, self.direction)
-			self.inProgress = True 
-			#print('Exiting not self.inProgress block')
-
-		if self.inProgress: 
-		#	print('In self.inProgress')
-			if (self.hasGold or self.retrace) and self.x == 1 and self.y == 1: 
-				self.score -= 1
-				return Agent.Action.CLIMB
-		#	print('self.moves: ', self.moves) 
-			if len(self.moves) == 1: self.inProgress = False 
-			move = self.moves.pop(0)
-			self.moveHistory.append(move) 
-			agentMove = 'Agent.Action' + '.' + move  
-		#	print('STATES: ') 
-		#	for nbr in self.gameNodes[(self.x,self.y)]:
-			
-		#		print(nbr[0],',',nbr[1],': ',self.gameStates[(nbr[0], nbr[1])])
-			if move == 'FORWARD': 
-				self.updateCoordinates() 
-				self.score -= 1
-			elif move == 'SHOOT':
-				self.hasArrow = False
-				self.score -= 10
-			else:
-				self.score -= 1
-		#	print('Current Dir: ', self.direction)
-			self.changeDirection(move) 
-		#	print('Next Dir: ', self.direction) 
-		#	print('Next Coordinates: ', self.x, ',', self.y)
-			return eval(agentMove) 
-			
-		return Agent.Action.CLIMB
-		# ======================================================================
-		# YOUR CODE ENDS
-		# ======================================================================
-    
-	# ======================================================================
-	# YOUR CODE BEGINS
-	# ======================================================================
-
     
 	# ======================================================================
 	# YOUR CODE ENDS
